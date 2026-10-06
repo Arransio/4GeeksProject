@@ -20,6 +20,6 @@
 - SQL: nombres `snake_case`; los movimientos del ejemplo de inventario son append-only y las restricciones criticas se prueban.
 - Mantener el backend y la interfaz en sus areas documentadas, evitar dependencias nuevas sin justificar y ejecutar pruebas automatizadas del slice modificado.
 
-## Decision tecnica pendiente
+## Runtime del gestor de incidencias
 
-Antes de elegir framework o persistencia del gestor, contrastar la propuesta con el alcance del backoffice y documentar por que se sigue el patron del ejemplo WSGI/SQLite o el objetivo FastAPI indicado por el README. No afirmar que existe una convencion de runtime unica mientras esa discrepancia siga abierta.
+El gestor sigue FastAPI, como recomienda el README del monorepo. Uvicorn sirve la API y el backoffice estático; las versiones están fijadas en `services/incident_manager/requirements.txt` para mantener compatibilidad con Python 3.7 disponible en el entorno de trabajo. `httpx` está separado en `requirements-dev.txt` para ejecutar `TestClient`.

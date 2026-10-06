@@ -8,8 +8,8 @@ El repositorio es un monorepo empresarial con areas separadas para interfaces (`
 
 | Hipotesis del resumen | Evidencia observada | Resultado |
 | --- | --- | --- |
-| Hay una API central implementada en `services/`. | `services/README.md` describe donde deben vivir los servicios, pero no hay codigo de servicio en esa carpeta. | La estructura esta preparada; la API aun no existe. |
-| FastAPI es un patron ejecutable del repo. | El README lo recomienda, pero el ejemplo ejecutable `inventoryManager/api.py` usa WSGI de la biblioteca estandar. | Hay una discrepancia entre la recomendacion y el codigo existente. |
+| Hay una API central implementada en `services/`. | En el checkpoint inicial, `services/README.md` describia donde debian vivir los servicios, pero no habia codigo de servicio. | La estructura existia; el gestor de incidencias incorpora ahora el primer servicio en esa ruta. |
+| FastAPI es un patron ejecutable del repo. | El README recomienda FastAPI; el ejemplo previo `inventoryManager/api.py` usa WSGI de la biblioteca estandar. | La discrepancia se resolvio usando FastAPI para el gestor y conservando inventario sin cambios. |
 | El ejemplo de inventario usa persistencia SQLite conectada al backend. | `inventoryManager/README.md` indica que el servicio de dominio es en memoria y que el esquema SQLite no esta conectado a la API. | Solo hay un esquema SQL separado, no persistencia integrada. |
 | Existe una configuracion de dependencias en la raiz. | No hay `pyproject.toml`, `uv.lock`, `package.json`, `requirements*.txt` ni `docker-compose.yml` en la raiz inspeccionada. `.devcontainer/post-create.sh` ejecuta `uv sync`. | La configuracion de desarrollo esta incompleta o depende de archivos ausentes. |
 | Hay un ejemplo de pruebas reutilizable. | `inventoryManager/test_inventory.py` usa `unittest`; el README documenta su comando de descubrimiento. | Convencion local comprobable para tests Python. |
@@ -27,7 +27,7 @@ El repositorio es un monorepo empresarial con areas separadas para interfaces (`
 
 - Seguir los limites de `services/`, `uis/` y `docs/` descritos en sus README.
 - Mantener `snake_case` en Python y SQL, clases `PascalCase` y tests Python con `unittest`, segun `inventoryManager/`.
-- No introducir una dependencia o framework sin explicar por que; resolver y documentar la discrepancia entre FastAPI recomendado y WSGI existente antes de fijar el runtime.
+- Usar FastAPI para el servicio nuevo, conforme al README del monorepo; no inferir que el ejemplo WSGI de inventario invalida esa recomendacion.
 - Obtener todos los valores de catalogo del briefing especifico, no de supuestos.
 - Registrar cada cambio de estado y area responsable con autor y marca temporal consultables.
 - Minimizar datos de salud y no almacenar identificadores directos de pacientes en incidencias operativas.

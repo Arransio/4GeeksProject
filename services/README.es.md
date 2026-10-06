@@ -9,4 +9,4 @@ Cada subcarpeta dentro de `services/` debe corresponder a **un servicio concreto
 
 ## Servicios implementados
 
-- [`incident_manager/`](./incident_manager/README.md): API WSGI con SQLite para el registro centralizado de incidencias operativas de HealthCore.
+- [`incident_manager/`](./incident_manager/README.md): API FastAPI con SQLite para el registro centralizado de incidencias operativas de HealthCore.

@@ -8,14 +8,45 @@
 6. Probar registro, clasificacion, asignacion, todas las transiciones, auditoria, filtros, resumen y validaciones de catalogos.
 7. Ejecutar las pruebas, revisar el diff, actualizar `memory-bank/progress.md` y documentar en el PR las reglas aplicadas y las discrepancias del repositorio.
 
-La configuracion definitiva y la aceptacion funcional dependen de confirmar los catalogos y transiciones que no aparecen en el briefing recibido.
+Los catálogos de tipos, severidades y canales y el flujo de estados fueron aprobados por la usuaria y están activos en `services/incident_manager/catalogs.json`.
 
-## Propuesta de catalogos para aprobacion
+## Catalogos y aprobaciones
 
-Esta lista no se carga en la aplicacion ni se trata como requisito confirmado. Se ofrece para que Operaciones y la CTO la contrasten y aprueben:
+### Tipos de incidencia: aprobados por la usuaria
 
-- Tipos: disponibilidad de clinica/sede, sistemas y accesos, equipamiento, proceso operativo, privacidad/cumplimiento, facturacion y experiencia del paciente.
-- Severidades: critica (riesgo inmediato para seguridad/privacidad o interrupcion de multiples sedes), alta (servicio o cumplimiento materialmente afectado), media (impacto parcial con alternativa), baja (incidencia localizada sin interrupcion relevante).
-- Canales: llamada de clinica, correo operativo, reporte interno del backoffice, alerta automatizada y escalado de cumplimiento.
+- Disponibilidad de clinica/sede.
+- Sistemas y accesos.
+- Equipamiento.
+- Proceso operativo.
+- Privacidad/cumplimiento.
+- Facturacion.
+- Experiencia del paciente.
 
-Confirmar los nombres finales, criterios y canales con HealthCore antes de configurar la instancia. Los estados y transiciones tambien requieren validacion de Operaciones; los del archivo de pruebas son solo fixtures.
+La aprobacion confirma estos tipos para la tarea; ya estan incorporados en el archivo de configuracion junto con los demas catalogos aprobados.
+
+### Severidades: aprobadas por la usuaria
+
+- Critica: riesgo inmediato para la seguridad o privacidad, o interrupcion en multiples sedes.
+- Alta: afectacion importante del servicio o del cumplimiento.
+- Media: afectacion parcial con una alternativa disponible.
+- Baja: incidencia localizada sin interrupcion relevante.
+
+### Canales de entrada: aprobados por la usuaria
+
+- Llamada de clinica.
+- Correo operativo.
+- Reporte interno del backoffice.
+- Alerta automatizada.
+- Escalado de cumplimiento.
+
+### Estados y transiciones: aprobados por la usuaria
+
+- Abierta → En revisión.
+- En revisión → En curso.
+- En curso → Resuelta.
+- Resuelta → Cerrada.
+- Los estados Abierta, En revisión, En curso y Resuelta cuentan como abiertos; Cerrada es el único estado cerrado.
+
+### Pendientes de revision
+
+- No quedan pendientes de aprobación de catálogos.

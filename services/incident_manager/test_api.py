@@ -1,130 +1,124 @@
-"""WSGI integration tests for the incident manager API and backoffice shell."""
+"""HTTP integration tests for the FastAPI incident manager."""
 
 from __future__ import annotations
 
-import io
-import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from services.incident_manager.api import create_app
-from services.incident_manager.service import IncidentCatalogs, IncidentService
+from fastapi.testclient import TestClient
+
+from services.incident_manager.api import create_app, load_catalogs
+from services.incident_manager.service import IncidentService
 
 
 class IncidentAPITests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = TemporaryDirectory()
-        self.service = IncidentService(
-            ":memory:",
-            IncidentCatalogs(
-                incident_types=("fixture-type",),
-                severities=("fixture-high", "fixture-low"),
-                channels=("fixture-channel",),
-                areas=("Tecnología", "Operaciones Clínicas"),
-                statuses=("fixture-open", "fixture-active", "fixture-closed"),
-                closed_statuses=("fixture-closed",),
-                initial_status="fixture-open",
-                transitions={
-                    "fixture-open": ("fixture-active",),
-                    "fixture-active": ("fixture-closed",),
-                },
-            ),
-        )
+        catalogs = load_catalogs(Path(__file__).with_name("catalogs.json"))
+        self.service = IncidentService(":memory:", catalogs)
         static_dir = Path(self.temporary_directory.name)
         (static_dir / "index.html").write_text("<main>Incident desk</main>", encoding="utf-8")
         self.app = create_app(self.service, static_dir)
+        self.client = TestClient(self.app)
 
     def tearDown(self) -> None:
         self.service.close()
         self.temporary_directory.cleanup()
 
-    def call(self, method: str, path: str, payload: dict | None = None, actor: str = ""):
-        body = json.dumps(payload).encode("utf-8") if payload is not None else b""
-        environ = {
-            "REQUEST_METHOD": method,
-            "PATH_INFO": path,
-            "QUERY_STRING": "",
-            "CONTENT_LENGTH": str(len(body)),
-            "wsgi.input": io.BytesIO(body),
-        }
-        if actor:
-            environ["HTTP_X_ACTOR"] = actor
-        response: dict[str, object] = {}
-
-        def start_response(status: str, headers: list[tuple[str, str]]) -> None:
-            response["status"] = status
-            response["headers"] = headers
-
-        output = b"".join(self.app(environ, start_response))
-        response["body"] = output
-        return response
-
-    def test_create_filter_history_and_summary_routes(self) -> None:
-        created = self.call(
-            "POST",
+    def create_incident(self):
+        return self.client.post(
             "/api/incidents",
-            {
+            json={
                 "title": "Fixture incident",
                 "description": "No patient information",
-                "incident_type": "fixture-type",
-                "severity": "fixture-high",
-                "channel": "fixture-channel",
+                "incident_type": "Sistemas y accesos",
+                "severity": "Crítica",
+                "channel": "Llamada de clínica",
                 "responsible_area": "Tecnología",
             },
-            actor="operator@example.test",
+            headers={"X-Actor": "operator@example.test"},
         )
-        self.assertEqual(created["status"], "201 Created")
-        incident = json.loads(created["body"])
 
-        listing = self.call("GET", "/api/incidents?severity=fixture-high")
-        self.assertEqual(len(json.loads(listing["body"])), 1)
+    def test_create_filter_assignment_transition_history_and_summary(self) -> None:
+        created = self.create_incident()
+        self.assertEqual(created.status_code, 201)
+        incident = created.json()
 
-        history = self.call("GET", f"/api/incidents/{incident['incident_id']}/history")
-        self.assertEqual(json.loads(history["body"])[0]["actor"], "operator@example.test")
+        listing = self.client.get(
+            "/api/incidents", params={"severity": "Crítica", "status": "Abierta"}
+        )
+        self.assertEqual(len(listing.json()), 1)
 
-        assigned = self.call(
-            "PATCH",
+        assigned = self.client.patch(
             f"/api/incidents/{incident['incident_id']}",
-            {"responsible_area": "Operaciones Clínicas"},
-            actor="operations@example.test",
+            json={"responsible_area": "Operaciones Clínicas"},
+            headers={"X-Actor": "operations@example.test"},
         )
-        self.assertEqual(assigned["status"], "200 OK")
-        transitioned = self.call(
-            "PATCH",
-            f"/api/incidents/{incident['incident_id']}",
-            {"status": "fixture-active"},
-            actor="technology@example.test",
-        )
-        self.assertEqual(transitioned["status"], "200 OK")
-        final_history = self.call("GET", f"/api/incidents/{incident['incident_id']}/history")
-        self.assertEqual(json.loads(final_history["body"])[-1]["event_type"], "status_changed")
+        self.assertEqual(assigned.status_code, 200)
+        self.assertEqual(assigned.json()["responsible_area"], "Operaciones Clínicas")
 
-        summary = self.call("GET", "/api/summary/open-by-severity")
-        self.assertEqual(json.loads(summary["body"]), {"fixture-high": 1, "fixture-low": 0})
+        transitioned = self.client.patch(
+            f"/api/incidents/{incident['incident_id']}",
+            json={"status": "En revisión"},
+            headers={"X-Actor": "technology@example.test"},
+        )
+        self.assertEqual(transitioned.status_code, 200)
+
+        history = self.client.get(f"/api/incidents/{incident['incident_id']}/history")
+        events = history.json()
+        self.assertEqual(events[-2]["event_type"], "responsibility_changed")
+        self.assertEqual(events[-2]["actor"], "operations@example.test")
+        self.assertEqual(events[-1]["event_type"], "status_changed")
+        self.assertEqual(events[-1]["actor"], "technology@example.test")
+
+        summary = self.client.get("/api/summary/open-by-severity")
+        self.assertEqual(
+            summary.json(), {"Crítica": 1, "Alta": 0, "Media": 0, "Baja": 0}
+        )
 
     def test_write_requires_actor_and_catalog_values(self) -> None:
-        missing_actor = self.call(
-            "POST",
+        missing_actor = self.client.post(
             "/api/incidents",
-            {
+            json={
                 "title": "Fixture incident",
                 "description": "Fixture description",
-                "incident_type": "fixture-type",
-                "severity": "fixture-high",
-                "channel": "fixture-channel",
+                "incident_type": "Sistemas y accesos",
+                "severity": "Crítica",
+                "channel": "Llamada de clínica",
                 "responsible_area": "Tecnología",
             },
         )
-        self.assertEqual(missing_actor["status"], "400 Bad Request")
+        self.assertEqual(missing_actor.status_code, 422)
+
+        invalid_catalog_value = self.client.post(
+            "/api/incidents",
+            json={
+                "title": "Fixture incident",
+                "description": "Fixture description",
+                "incident_type": "Tipo desconocido",
+                "severity": "Crítica",
+                "channel": "Llamada de clínica",
+                "responsible_area": "Tecnología",
+            },
+            headers={"X-Actor": "operator@example.test"},
+        )
+        self.assertEqual(invalid_catalog_value.status_code, 400)
 
     def test_catalog_route_and_static_backoffice(self) -> None:
-        catalogs = self.call("GET", "/api/catalogs")
-        self.assertEqual(json.loads(catalogs["body"])["closed_statuses"], ["fixture-closed"])
+        catalogs = self.client.get("/api/catalogs")
+        payload = catalogs.json()
+        self.assertEqual(payload["closed_statuses"], ["Cerrada"])
+        self.assertEqual(payload["initial_status"], "Abierta")
+        self.assertIn("Facturación", payload["incident_types"])
 
-        page = self.call("GET", "/")
-        self.assertEqual(page["status"], "200 OK")
-        self.assertEqual(page["body"], b"<main>Incident desk</main>")
+        page = self.client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(page.text, "<main>Incident desk</main>")
+
+        schema = self.client.get("/openapi.json").json()
+        self.assertIn("/api/incidents", schema["paths"])
+        self.assertIn("/api/incidents/{incident_id}/history", schema["paths"])
 
 
 if __name__ == "__main__":
