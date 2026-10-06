@@ -9,7 +9,8 @@ Estas reglas se activan
 
 ## REGLAS DE ESTRUCTURA 
 -1. Las carpetas del proyecto se organizan por responsabilidades de código (ui, backend, data, services, agentsm, infra y docs)
+-2. Las carácterísticas definidas en el punto anterior no pueden compartir directorio. 
 
 ### REQUISITO DE ACTIVACIÓN
-Esta regla se activa siempre que se genere código nuevo. 
+Estas reglas se activan siempre que se genere código nuevo que requiera creción de archivos. 
 
