@@ -10,13 +10,13 @@ El gestor centralizado de incidencias esta dirigido a los equipos de Operaciones
 
 Las areas y responsables definidos en el briefing son:
 
-- Operaciones Clinicas: Dr. Marcus Reid.
+- Operaciones Clínicas: Dr. Marcus Reid.
 - Experiencia del Paciente y Acceso: Priya Nair.
-- Ciclo de Ingresos y Facturacion: Tom Callahan.
+- Ciclo de Ingresos y Facturación: Tom Callahan.
 - Cumplimiento y Gobierno del Dato: Claire Whitfield.
 - Personas y Fuerza Laboral: Diane Foster.
-- Tecnologia: James Osei.
-- Direccion Ejecutiva: Dra. Sandra Okonkwo.
+- Tecnología: James Osei.
+- Dirección Ejecutiva: Dra. Sandra Okonkwo.
 
 ## Limites de dominio pendientes
 

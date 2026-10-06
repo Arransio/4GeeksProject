@@ -8,4 +8,14 @@
 6. Probar registro, clasificacion, asignacion, todas las transiciones, auditoria, filtros, resumen y validaciones de catalogos.
 7. Ejecutar las pruebas, revisar el diff, actualizar `memory-bank/progress.md` y documentar en el PR las reglas aplicadas y las discrepancias del repositorio.
 
-El trabajo de los pasos 3 a 6 depende de confirmar los catalogos que no aparecen en el briefing recibido.
+La configuracion definitiva y la aceptacion funcional dependen de confirmar los catalogos y transiciones que no aparecen en el briefing recibido.
+
+## Propuesta de catalogos para aprobacion
+
+Esta lista no se carga en la aplicacion ni se trata como requisito confirmado. Se ofrece para que Operaciones y la CTO la contrasten y aprueben:
+
+- Tipos: disponibilidad de clinica/sede, sistemas y accesos, equipamiento, proceso operativo, privacidad/cumplimiento, facturacion y experiencia del paciente.
+- Severidades: critica (riesgo inmediato para seguridad/privacidad o interrupcion de multiples sedes), alta (servicio o cumplimiento materialmente afectado), media (impacto parcial con alternativa), baja (incidencia localizada sin interrupcion relevante).
+- Canales: llamada de clinica, correo operativo, reporte interno del backoffice, alerta automatizada y escalado de cumplimiento.
+
+Confirmar los nombres finales, criterios y canales con HealthCore antes de configurar la instancia. Los estados y transiciones tambien requieren validacion de Operaciones; los del archivo de pruebas son solo fixtures.
