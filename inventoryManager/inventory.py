@@ -308,6 +308,22 @@ class InventoryService:
             for row in rows
         )
 
+    def list_inventory(self) -> tuple[dict[str, object], ...]:
+        rows = self._connection.execute(
+            """SELECT p.product_id, p.name, p.unit, p.reorder_point, s.stock
+               FROM products AS p
+               JOIN product_stock AS s ON s.product_id = p.product_id
+               ORDER BY p.product_id"""
+        ).fetchall()
+        return tuple(dict(row) for row in rows)
+
+    def get_low_stock_products(self) -> tuple[dict[str, object], ...]:
+        return tuple(
+            item
+            for item in self.list_inventory()
+            if item["stock"] < item["reorder_point"]
+        )
+
     def update_product(
         self,
         product_id: str,

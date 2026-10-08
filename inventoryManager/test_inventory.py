@@ -106,6 +106,24 @@ class InventoryStockTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unit"):
             self.inventory.add_product(Product("P-BAD", "Gloves", "", 0))
 
+    def test_inventory_view_includes_derived_stock_and_reorder_alert_boundary(self) -> None:
+        self.inventory.update_product("P-1", reorder_point=3)
+        self.inventory.register_movement(
+            make_movement("M-REORDER-1", "P-1", MovementType.RECEIPT, 2)
+        )
+
+        inventory_rows = self.inventory.list_inventory()
+        low_stock_rows = self.inventory.get_low_stock_products()
+        self.assertEqual(inventory_rows[0]["stock"], 2)
+        self.assertEqual(inventory_rows[0]["reorder_point"], 3)
+        self.assertEqual(low_stock_rows, inventory_rows)
+
+        self.inventory.register_movement(
+            make_movement("M-REORDER-2", "P-1", MovementType.RECEIPT, 1)
+        )
+        self.assertEqual(self.inventory.get_stock("P-1"), 3)
+        self.assertEqual(self.inventory.get_low_stock_products(), ())
+
     def test_lot_belongs_to_one_existing_product(self) -> None:
         self.inventory.add_product(Product("P-2", "Exam masks", "box", 2))
         self.inventory.add_lot(Lot("LOT-1", "P-1"))
