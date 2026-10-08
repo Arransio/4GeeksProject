@@ -34,6 +34,8 @@ La API escucha en `http://127.0.0.1:8001`. Variables opcionales: `INVENTORY_HOST
 - `POST /api/invoices/receive`
 - `POST /api/inventory/reconcile`
 
+La misma API sirve el backoffice documentado en [`uis/backoffice/inventory/README.md`](../uis/backoffice/inventory/README.md).
+
 ## Pruebas
 
 ```bash

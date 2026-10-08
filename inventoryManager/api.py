@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import sqlite3
 from decimal import Decimal
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from inventory import (
     InventoryReconciliation,
@@ -173,5 +175,9 @@ def create_app(inventory: InventoryService) -> FastAPI:
         )
         movements = inventory.reconcile_month_end(reconciliation)
         return [_movement_payload(movement) for movement in movements]
+
+    static_directory = Path(__file__).resolve().parents[1] / "uis/backoffice/inventory"
+    if static_directory.is_dir():
+        app.mount("/", StaticFiles(directory=str(static_directory), html=True), name="inventory-ui")
 
     return app

@@ -504,6 +504,18 @@ class InventoryStockTests(unittest.TestCase):
         product_row = next(row for row in inventory_rows if row["product_id"] == "P-API")
         self.assertEqual(product_row["stock"], 2)
         self.assertEqual(len(client.get("/api/inventory/low-stock").json()), 1)
+        self.assertEqual(product_row["lot_count"], 1)
+
+    def test_fastapi_serves_inventory_backoffice(self) -> None:
+        client = TestClient(create_app(self.inventory))
+        page = client.get("/")
+        stylesheet = client.get("/styles.css")
+        script = client.get("/app.js")
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Inventario", page.text)
+        self.assertEqual(stylesheet.status_code, 200)
+        self.assertEqual(script.status_code, 200)
 
     def test_fastapi_rejects_movement_without_reason(self) -> None:
         client = TestClient(create_app(self.inventory))

@@ -315,7 +315,8 @@ class InventoryService:
 
     def list_inventory(self) -> tuple[dict[str, object], ...]:
         rows = self._connection.execute(
-            """SELECT p.product_id, p.name, p.unit, p.reorder_point, s.stock
+            """SELECT p.product_id, p.name, p.unit, p.reorder_point, s.stock,
+                      (SELECT COUNT(*) FROM lots AS l WHERE l.product_id = p.product_id) AS lot_count
                FROM products AS p
                JOIN product_stock AS s ON s.product_id = p.product_id
                ORDER BY p.product_id"""
