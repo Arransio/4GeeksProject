@@ -55,6 +55,10 @@ class InventoryStockTests(unittest.TestCase):
         )
 
         self.assertEqual(self.inventory.get_stock("P-1"), 8)
+        database_stock = self.inventory._connection.execute(
+            "SELECT stock FROM product_stock WHERE product_id = ?", ("P-1",)
+        ).fetchone()[0]
+        self.assertEqual(self.inventory.get_stock("P-1"), database_stock)
         movements = self.inventory.get_movements("P-1")
         self.assertTrue(all(movement.reason for movement in movements))
         self.assertTrue(all(movement.occurred_at for movement in movements))
@@ -186,6 +190,7 @@ class InventoryStockTests(unittest.TestCase):
             reopened = InventoryService(database_path=database_path)
             try:
                 self.assertEqual(reopened.get_stock("P-RESTART"), 5)
+                self.assertEqual(len(reopened.get_movements("P-RESTART")), 1)
                 movement = reopened.get_movements("P-RESTART")[0]
                 self.assertEqual(movement.reason, "Clinic delivery")
                 self.assertEqual(movement.lot_id, "LOT-RESTART")

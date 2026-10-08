@@ -656,17 +656,31 @@ class InventoryService:
     def get_stock(self, product_id: str) -> int:
         if product_id not in self._products:
             raise ValueError(f"Unknown product: {product_id}")
-        return sum(
-            movement.stock_delta
-            for movement in self._movements
-            if movement.product_id == product_id
-        )
+        row = self._connection.execute(
+            "SELECT stock FROM product_stock WHERE product_id = ?", (product_id,)
+        ).fetchone()
+        return int(row["stock"])
 
     def get_movements(self, product_id: str) -> tuple[Movement, ...]:
         if product_id not in self._products:
             raise ValueError(f"Unknown product: {product_id}")
+        rows = self._connection.execute(
+            """SELECT movement_id, product_id, movement_type, quantity, unit_cost,
+                      reference_id, lot_id, reason, occurred_at
+               FROM movements WHERE product_id = ? ORDER BY rowid""",
+            (product_id,),
+        ).fetchall()
         return tuple(
-            movement
-            for movement in self._movements
-            if movement.product_id == product_id
+            Movement(
+                movement_id=row["movement_id"],
+                product_id=row["product_id"],
+                movement_type=MovementType(row["movement_type"]),
+                quantity=row["quantity"],
+                unit_cost=Decimal(row["unit_cost"]) if row["unit_cost"] is not None else None,
+                reference_id=row["reference_id"],
+                lot_id=row["lot_id"],
+                reason=row["reason"],
+                occurred_at=row["occurred_at"],
+            )
+            for row in rows
         )
