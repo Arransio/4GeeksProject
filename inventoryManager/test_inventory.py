@@ -41,7 +41,7 @@ class InventoryStockTests(unittest.TestCase):
         self.inventory.add_product(Product(product_id="P-1", name="Coffee"))
         self.inventory.add_lot(Lot("LOT-TEST", "P-1"))
 
-    def test_stock_is_aggregated_from_all_movements(self) -> None:
+    def test_mov_003_inv_004_stock_is_aggregated_from_all_movements(self) -> None:
         self.inventory.register_movement(
             make_movement("M-1", "P-1", MovementType.RECEIPT, 12, Decimal("2.50"))
         )
@@ -64,13 +64,13 @@ class InventoryStockTests(unittest.TestCase):
         self.assertTrue(all(movement.reason for movement in movements))
         self.assertTrue(all(movement.occurred_at for movement in movements))
 
-    def test_product_has_no_direct_stock_field(self) -> None:
+    def test_inv_001_inv_004_product_has_no_direct_stock_field(self) -> None:
         product = self.inventory._products["P-1"]
         self.assertFalse(hasattr(product, "stock"))
         with self.assertRaises(AttributeError):
             product.stock = 10  # type: ignore[attr-defined]
 
-    def test_product_can_be_edited_and_listed_without_changing_stock(self) -> None:
+    def test_inv_002_product_can_be_edited_without_changing_stock(self) -> None:
         self.inventory.register_movement(
             make_movement("M-PRODUCT-1", "P-1", MovementType.RECEIPT, 7)
         )
@@ -85,7 +85,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(self.inventory.get_stock("P-1"), 7)
         self.assertEqual(self.inventory.list_products(), (updated,))
 
-    def test_product_catalog_persists_across_service_restarts(self) -> None:
+    def test_inv_001_product_catalog_persists_across_service_restarts(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             database_path = str(Path(temporary_directory) / "inventory.sqlite3")
             service = InventoryService(database_path=database_path)
@@ -98,16 +98,59 @@ class InventoryStockTests(unittest.TestCase):
                     reopened.get_product("P-PERSIST"),
                     Product("P-PERSIST", "Exam gloves", "box", 3),
                 )
+                with self.assertRaisesRegex(ValueError, "already exists"):
+                    reopened.add_product(Product("P-PERSIST", "Duplicate", "box", 2))
             finally:
                 reopened.close()
 
-    def test_product_rejects_invalid_reorder_point_and_empty_unit(self) -> None:
+    def test_exc_002_movement_for_unknown_product_is_rejected(self) -> None:
+        movement = make_movement(
+            "M-UNKNOWN-PRODUCT", "P-404", MovementType.RECEIPT, 2,
+            lot_id="LOT-UNKNOWN-PRODUCT", reason="Unknown article test",
+        )
+        with self.assertRaisesRegex(ValueError, "Unknown product"):
+            self.inventory.register_movement(movement)
+        self.assertEqual(self.inventory.get_movements("P-1"), ())
+
+    def test_exc_003_movement_rejects_missing_or_foreign_lot(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unknown lot"):
+            self.inventory.register_movement(
+                make_movement(
+                    "M-MISSING-LOT", "P-1", MovementType.SALE, 1,
+                    lot_id="LOT-MISSING", reason="Missing lot test",
+                )
+            )
+
+        self.inventory.add_product(Product("P-OTHER", "Exam masks", "box", 1))
+        self.inventory.add_lot(Lot("LOT-OTHER", "P-OTHER"))
+        with self.assertRaisesRegex(ValueError, "another product"):
+            self.inventory.register_movement(
+                make_movement(
+                    "M-FOREIGN-LOT", "P-1", MovementType.SALE, 1,
+                    lot_id="LOT-OTHER", reason="Foreign lot test",
+                )
+            )
+        self.assertEqual(self.inventory.get_movements("P-1"), ())
+
+    def test_exc_004_invalid_movement_quantities_are_rejected(self) -> None:
+        for movement_id, quantity in (("M-ZERO-SALE", 0), ("M-FLOAT-SALE", 1.5)):
+            with self.subTest(movement_id=movement_id):
+                with self.assertRaisesRegex(ValueError, "quantity"):
+                    self.inventory.register_movement(
+                        make_movement(
+                            movement_id, "P-1", MovementType.SALE, quantity,
+                            reason="Invalid quantity test",
+                        )
+                    )
+        self.assertEqual(self.inventory.get_movements("P-1"), ())
+
+    def test_inv_001_product_rejects_invalid_reorder_point_and_empty_unit(self) -> None:
         with self.assertRaisesRegex(ValueError, "Reorder point"):
             self.inventory.add_product(Product("P-BAD", "Gloves", "box", -1))
         with self.assertRaisesRegex(ValueError, "unit"):
             self.inventory.add_product(Product("P-BAD", "Gloves", "", 0))
 
-    def test_inventory_view_includes_derived_stock_and_reorder_alert_boundary(self) -> None:
+    def test_inv_003_alr_001_alr_002_inventory_and_reorder_boundary(self) -> None:
         self.inventory.update_product("P-1", reorder_point=3)
         self.inventory.register_movement(
             make_movement("M-REORDER-1", "P-1", MovementType.RECEIPT, 2)
@@ -125,7 +168,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(self.inventory.get_stock("P-1"), 3)
         self.assertEqual(self.inventory.get_low_stock_products(), ())
 
-    def test_lot_belongs_to_one_existing_product(self) -> None:
+    def test_mov_001_exc_003_lot_belongs_to_one_existing_product(self) -> None:
         self.inventory.add_product(Product("P-2", "Exam masks", "box", 2))
         self.inventory.add_lot(Lot("LOT-1", "P-1"))
 
@@ -138,7 +181,7 @@ class InventoryStockTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.inventory.add_lot(Lot("LOT-1", "P-2"))
 
-    def test_lot_rejects_unknown_product_and_persists(self) -> None:
+    def test_exc_002_mov_001_lot_rejects_unknown_product_and_persists(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unknown product"):
             self.inventory.add_lot(Lot("LOT-UNKNOWN", "P-404"))
 
@@ -157,14 +200,14 @@ class InventoryStockTests(unittest.TestCase):
             finally:
                 reopened.close()
 
-    def test_duplicate_movement_is_rejected(self) -> None:
+    def test_mov_004_duplicate_movement_is_rejected(self) -> None:
         movement = make_movement("M-1", "P-1", MovementType.RECEIPT, 3)
         self.inventory.register_movement(movement)
 
         with self.assertRaisesRegex(ValueError, "Movement already exists"):
             self.inventory.register_movement(movement)
 
-    def test_movement_requires_reason_and_is_persisted_as_immutable(self) -> None:
+    def test_mov_002_mov_004_movement_reason_timestamp_and_immutability(self) -> None:
         with self.assertRaisesRegex(ValueError, "reason"):
             self.inventory.register_movement(
                 InventoryMovement("M-NO-REASON", "P-1", MovementType.RECEIPT, 2)
@@ -188,7 +231,7 @@ class InventoryStockTests(unittest.TestCase):
                 "DELETE FROM movements WHERE movement_id = ?", ("M-IMMUTABLE",)
             )
 
-    def test_signed_adjustments_update_stock_and_reject_zero_or_negative_result(self) -> None:
+    def test_mov_002_exc_001_signed_adjustments_and_zero_rejection(self) -> None:
         self.inventory.register_movement(
             make_movement("M-ADJUST-UP", "P-1", MovementType.ADJUSTMENT, 5)
         )
@@ -207,7 +250,7 @@ class InventoryStockTests(unittest.TestCase):
             )
         self.assertEqual(self.inventory.get_stock("P-1"), 3)
 
-    def test_movements_persist_across_service_restarts(self) -> None:
+    def test_mov_002_movements_persist_across_service_restarts(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             database_path = str(Path(temporary_directory) / "movement.sqlite3")
             service = InventoryService(database_path=database_path)
@@ -236,7 +279,7 @@ class InventoryStockTests(unittest.TestCase):
             finally:
                 reopened.close()
 
-    def test_legacy_database_migrates_existing_movements(self) -> None:
+    def test_mov_002_legacy_database_migrates_existing_movements(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             database_path = str(Path(temporary_directory) / "legacy.sqlite3")
             connection = sqlite3.connect(database_path)
@@ -267,7 +310,7 @@ class InventoryStockTests(unittest.TestCase):
             finally:
                 migrated.close()
 
-    def test_new_lot_and_movement_are_rolled_back_together(self) -> None:
+    def test_mov_001_new_lot_and_movement_are_rolled_back_together(self) -> None:
         movement = make_movement(
             "M-ATOMIC-1",
             "P-1",
@@ -284,7 +327,7 @@ class InventoryStockTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown lot"):
             self.inventory.get_lot("LOT-ATOMIC")
 
-    def test_stock_cannot_fall_below_zero(self) -> None:
+    def test_exc_001_stock_cannot_fall_below_zero(self) -> None:
         with self.assertRaises(StockWouldBecomeNegative) as context:
             self.inventory.register_movement(
                 make_movement("M-1", "P-1", MovementType.SALE, 1)
@@ -295,7 +338,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(self.inventory.get_stock("P-1"), 0)
         self.assertEqual(self.inventory.get_movements("P-1"), ())
 
-    def test_movement_cannot_take_positive_stock_below_zero(self) -> None:
+    def test_exc_001_movement_cannot_take_stock_below_zero(self) -> None:
         self.inventory.register_movement(
             make_movement("M-1", "P-1", MovementType.RECEIPT, 4)
         )
@@ -326,7 +369,7 @@ class InventoryStockTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidScan, "unknown product"):
             self.inventory.validate_scan(Scan("S-4", "P-404", 1))
 
-    def test_invoice_receipt_adds_verified_quantities_to_stock(self) -> None:
+    def test_mov_001_invoice_receipt_adds_verified_quantities_to_stock(self) -> None:
         invoice = SupplierInvoice(
             "INV-100",
             (InvoiceLine("P-1", 2, Decimal("2.50")),),
@@ -342,7 +385,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(movements[0].reference_id, "INV-100")
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_invoice_rejects_mismatched_scanned_quantity_atomically(self) -> None:
+    def test_exc_004_invoice_rejects_mismatched_quantity_atomically(self) -> None:
         invoice = SupplierInvoice("INV-101", (InvoiceLine("P-1", 2),))
 
         with self.assertRaisesRegex(InvoiceValidationError, "do not match"):
@@ -356,7 +399,7 @@ class InventoryStockTests(unittest.TestCase):
         )
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_invoice_rejects_multiple_items_per_scan(self) -> None:
+    def test_exc_004_invoice_rejects_multiple_items_per_scan(self) -> None:
         invoice = SupplierInvoice("INV-102", (InvoiceLine("P-1", 2),))
 
         with self.assertRaisesRegex(InvoiceValidationError, "exactly one"):
@@ -376,7 +419,7 @@ class InventoryStockTests(unittest.TestCase):
 
         self.assertEqual(self.inventory.get_stock("P-1"), 1)
 
-    def test_scanned_return_adds_items_to_stock(self) -> None:
+    def test_mov_002_scanned_return_adds_items_to_stock(self) -> None:
         movements = self.inventory.record_return(
             "RET-1", (Scan("S-20", "P-1"), Scan("S-21", "P-1")), "checkout-1"
         )
@@ -386,7 +429,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(movements[0].quantity, 2)
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_checkout_sale_reduces_stock(self) -> None:
+    def test_mov_002_checkout_sale_reduces_stock(self) -> None:
         self.inventory.register_movement(
             make_movement("M-20", "P-1", MovementType.RECEIPT, 3)
         )
@@ -399,7 +442,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(movements[0].quantity, 2)
         self.assertEqual(self.inventory.get_stock("P-1"), 1)
 
-    def test_checkout_sale_that_exceeds_stock_locks_terminal(self) -> None:
+    def test_exc_001_checkout_sale_that_exceeds_stock_locks_terminal(self) -> None:
         self.inventory.register_movement(
             make_movement("M-21", "P-1", MovementType.RECEIPT, 1)
         )
@@ -416,7 +459,7 @@ class InventoryStockTests(unittest.TestCase):
                 "RET-2", (Scan("S-26", "P-1"),), "checkout-3"
             )
 
-    def test_month_end_reconciliation_registers_shrinkage(self) -> None:
+    def test_mov_003_month_end_reconciliation_registers_shrinkage(self) -> None:
         self.inventory.register_movement(
             make_movement("M-22", "P-1", MovementType.RECEIPT, 8)
         )
@@ -430,7 +473,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(movements[0].quantity, 3)
         self.assertEqual(self.inventory.get_stock("P-1"), 5)
 
-    def test_month_end_reconciliation_records_physical_surplus(self) -> None:
+    def test_mov_003_month_end_reconciliation_records_physical_surplus(self) -> None:
         movements = self.inventory.reconcile_month_end(
             InventoryReconciliation("STOCKTAKE-2", {"P-1": 3})
         )
@@ -438,7 +481,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(movements[0].movement_type, MovementType.INVENTORY_GAIN)
         self.assertEqual(self.inventory.get_stock("P-1"), 3)
 
-    def test_manual_negative_movement_locks_and_manager_can_unlock(self) -> None:
+    def test_exc_001_manual_negative_movement_locks_and_manager_can_unlock(self) -> None:
         self.inventory = InventoryService(
             manager_credential_verifier=lambda username, password: (
                 username == "manager" and password == "valid"
@@ -470,7 +513,7 @@ class InventoryStockTests(unittest.TestCase):
         )
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_fastapi_product_crud_inventory_and_low_stock(self) -> None:
+    def test_inv_001_inv_002_inv_003_alr_001_alr_002_fastapi_product_crud_inventory(self) -> None:
         client = TestClient(create_app(self.inventory))
         listed = client.get("/api/products")
         self.assertEqual(listed.status_code, 200)
@@ -506,7 +549,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(len(client.get("/api/inventory/low-stock").json()), 1)
         self.assertEqual(product_row["lot_count"], 1)
 
-    def test_fastapi_serves_inventory_backoffice(self) -> None:
+    def test_inv_003_fastapi_serves_inventory_backoffice(self) -> None:
         client = TestClient(create_app(self.inventory))
         page = client.get("/")
         stylesheet = client.get("/styles.css")
@@ -517,7 +560,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(stylesheet.status_code, 200)
         self.assertEqual(script.status_code, 200)
 
-    def test_fastapi_rejects_movement_without_reason(self) -> None:
+    def test_exc_004_fastapi_rejects_movement_without_reason(self) -> None:
         client = TestClient(create_app(self.inventory))
         response = client.post(
             "/api/movements",
@@ -531,7 +574,7 @@ class InventoryStockTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
 
-    def test_fastapi_receives_verified_supplier_invoice(self) -> None:
+    def test_mov_001_fastapi_receives_verified_supplier_invoice(self) -> None:
         client = TestClient(create_app(self.inventory))
         response = client.post(
             "/api/invoices/receive",
@@ -549,7 +592,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(response.json()["invoice_id"], "INV-FASTAPI-1")
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_sqlite_schema_guards_negative_aggregate_stock(self) -> None:
+    def test_exc_001_sqlite_schema_guards_negative_aggregate_stock(self) -> None:
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         connection = sqlite3.connect(":memory:")
         connection.executescript(schema)
@@ -586,7 +629,7 @@ class InventoryStockTests(unittest.TestCase):
         self.assertEqual(stock, 3)
         connection.close()
 
-    def test_sqlite_schema_rejects_lot_owned_by_another_product(self) -> None:
+    def test_exc_003_sqlite_schema_rejects_lot_owned_by_another_product(self) -> None:
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         connection = sqlite3.connect(":memory:")
         connection.executescript(schema)

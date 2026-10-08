@@ -42,3 +42,21 @@ La misma API sirve el backoffice documentado en [`uis/backoffice/inventory/READM
 python3 -m pip install -r inventoryManager/requirements-dev.txt
 PYTHONPATH=inventoryManager python3 -m unittest discover -s inventoryManager -v
 ```
+
+## Trazabilidad de aceptacion
+
+| Criterio | Test automatizado |
+| --- | --- |
+| INV-001 | `test_inv_001_product_catalog_persists_across_service_restarts`, `test_inv_001_inv_002_inv_003_alr_001_alr_002_fastapi_product_crud_inventory` |
+| INV-002 | `test_inv_002_product_can_be_edited_without_changing_stock`, API CRUD |
+| INV-003 | `test_inv_003_alr_001_alr_002_inventory_and_reorder_boundary`, API inventory list |
+| INV-004 | `test_inv_001_inv_004_product_has_no_direct_stock_field`, `test_mov_003_inv_004_stock_is_aggregated_from_all_movements` |
+| MOV-001 | `test_mov_001_new_lot_and_movement_are_rolled_back_together`, factura FastAPI |
+| MOV-002 | `test_mov_002_mov_004_movement_reason_timestamp_and_immutability`, tests de venta y devolucion |
+| MOV-003 | `test_mov_003_inv_004_stock_is_aggregated_from_all_movements`, tests de reconciliacion mensual |
+| MOV-004 | `test_mov_002_mov_004_movement_reason_timestamp_and_immutability`, `test_mov_004_duplicate_movement_is_rejected` |
+| ALR-001, ALR-002 | `test_inv_003_alr_001_alr_002_inventory_and_reorder_boundary`, API CRUD/inventory |
+| EXC-001 | Tests `test_exc_001_*` de servicio, terminales y trigger SQLite |
+| EXC-002 | `test_exc_002_movement_for_unknown_product_is_rejected` |
+| EXC-003 | `test_exc_003_movement_rejects_missing_or_foreign_lot`, FK SQLite |
+| EXC-004 | Tests `test_exc_004_*` de motivo, cantidades y verificacion de factura |

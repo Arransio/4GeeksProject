@@ -11,11 +11,11 @@ Cada tarea es un bloque pequeno, implementable en orden y verificable contra los
 - [x] **TASK-005 - Lectura de inventario y punto de reorden** (INV-003, ALR-001, ALR-002): devolver articulos con existencia calculada y exponer alerta cuando stock sea estrictamente menor que el punto de reorden.
 - [x] **TASK-006 - API FastAPI** (INV-001, INV-002, INV-003, MOV-001, MOV-002, ALR-001, ALR-002, EXC-001, EXC-002, EXC-003, EXC-004): exponer contratos HTTP para articulos, lotes, movimientos e inventario bajo el umbral; traducir validaciones a respuestas verificables.
 - [x] **TASK-007 - Backoffice de inventario** (INV-001, INV-002, INV-003, MOV-001, MOV-002, ALR-001, ALR-002): implementar alta/edicion/listado, registro de movimientos con motivo y alerta visible de bajo stock usando la API y sin stock editable.
-- [ ] **TASK-008 - Verificacion de aceptacion y documentacion** (INV-001, INV-002, INV-003, INV-004, MOV-001, MOV-002, MOV-003, MOV-004, ALR-001, ALR-002, EXC-001, EXC-002, EXC-003, EXC-004): ejecutar pruebas unitarias, SQLite, API y UI para cada criterio; documentar como ejecutar y actualizar progreso/README.
+- [x] **TASK-008 - Verificacion de aceptacion y documentacion** (INV-001, INV-002, INV-003, INV-004, MOV-001, MOV-002, MOV-003, MOV-004, ALR-001, ALR-002, EXC-001, EXC-002, EXC-003, EXC-004): ejecutar pruebas unitarias, SQLite, API y UI para cada criterio; documentar como ejecutar y actualizar progreso/README.
 
 ## Definition of done
 
-- [ ] Cada criterio EARS tiene al menos una prueba automatizada con un nombre que incluya su ID.
-- [ ] Los tests cubren tanto resultados correctos como errores, incluyendo stock negativo, articulo inexistente y lote inexistente/ajeno.
-- [ ] La salida de tests, `git diff --check` y revision del diff se completan antes de cerrar cada commit.
-- [ ] El historial contiene commits pequenos y trazables; no se agrupan todos los cambios en un commit final.
+- [x] Cada criterio EARS tiene al menos una prueba automatizada con un nombre que incluya su ID.
+- [x] Los tests cubren tanto resultados correctos como errores, incluyendo stock negativo, articulo inexistente y lote inexistente/ajeno.
+- [x] La salida de tests, `git diff --check` y revision del diff se completan antes de cerrar cada commit.
+- [x] El historial contiene commits pequenos y trazables; no se agrupan todos los cambios en un commit final.
