@@ -9,6 +9,7 @@ import sqlite3
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from fastapi.testclient import TestClient
 
 from inventory import (
     InventoryService,
@@ -450,37 +451,71 @@ class InventoryStockTests(unittest.TestCase):
         )
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
-    def test_wsgi_invoice_endpoint_receives_verified_items(self) -> None:
-        app = create_app(self.inventory)
-        payload = {
-            "invoice": {
-                "invoice_id": "INV-API-1",
+    def test_fastapi_product_crud_inventory_and_low_stock(self) -> None:
+        client = TestClient(create_app(self.inventory))
+        listed = client.get("/api/products")
+        self.assertEqual(listed.status_code, 200)
+        self.assertNotIn("stock", listed.json()[0])
+
+        created = client.post(
+            "/api/products",
+            json={"product_id": "P-API", "name": "Test kits", "unit": "kit", "reorder_point": 2},
+        )
+        self.assertEqual(created.status_code, 201)
+
+        updated = client.patch(
+            "/api/products/P-API", json={"name": "Rapid test kits", "reorder_point": 3}
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["name"], "Rapid test kits")
+
+        movement = client.post(
+            "/api/movements",
+            json={
+                "movement_id": "M-API-1",
+                "product_id": "P-API",
+                "lot_id": "LOT-API-1",
+                "movement_type": "receipt",
+                "quantity": 2,
+                "reason": "Clinic delivery",
+            },
+        )
+        self.assertEqual(movement.status_code, 201)
+        inventory_rows = client.get("/api/inventory").json()
+        product_row = next(row for row in inventory_rows if row["product_id"] == "P-API")
+        self.assertEqual(product_row["stock"], 2)
+        self.assertEqual(len(client.get("/api/inventory/low-stock").json()), 1)
+
+    def test_fastapi_rejects_movement_without_reason(self) -> None:
+        client = TestClient(create_app(self.inventory))
+        response = client.post(
+            "/api/movements",
+            json={
+                "movement_id": "M-API-NO-REASON",
+                "product_id": "P-1",
+                "lot_id": "LOT-TEST",
+                "movement_type": "receipt",
+                "quantity": 1,
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_fastapi_receives_verified_supplier_invoice(self) -> None:
+        client = TestClient(create_app(self.inventory))
+        response = client.post(
+            "/api/invoices/receive",
+            json={
+                "invoice_id": "INV-FASTAPI-1",
                 "lines": [{"product_id": "P-1", "quantity": 2}],
+                "scans": [
+                    {"scan_id": "S-FASTAPI-1", "product_id": "P-1"},
+                    {"scan_id": "S-FASTAPI-2", "product_id": "P-1"},
+                ],
             },
-            "scans": [
-                {"scan_id": "S-API-1", "product_id": "P-1"},
-                {"scan_id": "S-API-2", "product_id": "P-1"},
-            ],
-        }
-        response: dict[str, object] = {}
-
-        def start_response(status: str, headers: list[tuple[str, str]]) -> None:
-            response["status"] = status
-            response["headers"] = headers
-
-        result = app(
-            {
-                "REQUEST_METHOD": "POST",
-                "PATH_INFO": "/invoices/receive",
-                "CONTENT_LENGTH": str(len(json.dumps(payload).encode("utf-8"))),
-                "wsgi.input": io.BytesIO(json.dumps(payload).encode("utf-8")),
-            },
-            start_response,
         )
 
-        self.assertEqual(response["status"], "201 Created")
-        body = json.loads(b"".join(result))
-        self.assertEqual(body["invoice_id"], "INV-API-1")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["invoice_id"], "INV-FASTAPI-1")
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
     def test_sqlite_schema_guards_negative_aggregate_stock(self) -> None:

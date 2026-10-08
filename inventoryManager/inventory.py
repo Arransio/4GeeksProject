@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from datetime import datetime, timezone
@@ -134,8 +135,9 @@ class InventoryService:
         database_path: str = ":memory:",
     ) -> None:
         schema_path = Path(__file__).with_name("schema.sql")
-        self._connection = sqlite3.connect(database_path)
+        self._connection = sqlite3.connect(database_path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
+        self._database_lock = threading.RLock()
         self._connection.executescript(schema_path.read_text(encoding="utf-8"))
         self._migrate_product_columns()
         self._migrate_movement_columns()
@@ -390,7 +392,16 @@ class InventoryService:
                     raise ValueError("Movement must reference an existing lot")
             lot_product_id = lots_to_create.get(lot_id)
             if lot_product_id is None:
-                lot_product_id = self.get_lot(lot_id).product_id
+                try:
+                    lot_product_id = self.get_lot(lot_id).product_id
+                except ValueError:
+                    if movement.movement_type not in (
+                        MovementType.RECEIPT,
+                        MovementType.INVENTORY_GAIN,
+                    ):
+                        raise
+                    lots_to_create[lot_id] = movement.product_id
+                    lot_product_id = movement.product_id
             if lot_product_id != movement.product_id:
                 raise ValueError("Lot belongs to another product")
             persisted_movements.append(

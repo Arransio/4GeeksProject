@@ -1,111 +1,177 @@
-"""Small standard-library WSGI API for the inventory-manager sketch."""
+"""FastAPI endpoints for HealthCore clinic inventory."""
 
 from __future__ import annotations
 
-import json
-from typing import Any, Callable, Iterable
+import sqlite3
+from decimal import Decimal
+from typing import List, Optional
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
 from inventory import (
+    InventoryReconciliation,
     InventoryService,
     InvoiceLine,
-    InvoiceValidationError,
+    Movement,
+    MovementType,
+    Product,
     Scan,
     SupplierInvoice,
 )
 
 
-class InventoryAPI:
-    """Expose invoice receiving as ``POST /invoices/receive``."""
+class ProductCreate(BaseModel):
+    product_id: str
+    name: str
+    unit: str
+    reorder_point: int
 
-    def __init__(self, inventory: InventoryService) -> None:
-        self.inventory = inventory
 
-    def __call__(
-        self, environ: dict[str, Any], start_response: Callable[..., Any]
-    ) -> Iterable[bytes]:
-        method = environ.get("REQUEST_METHOD", "GET").upper()
-        path = environ.get("PATH_INFO", "")
-        if method != "POST" or path != "/invoices/receive":
-            return self._respond(start_response, "404 Not Found", {"error": "Not found"})
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    unit: Optional[str] = None
+    reorder_point: Optional[int] = None
 
-        try:
-            content_length = int(environ.get("CONTENT_LENGTH") or 0)
-            if content_length <= 0:
-                raise ValueError("Request body is required")
-            body = environ["wsgi.input"].read(content_length)
-            payload = json.loads(body)
-            invoice, scans = self._parse_invoice_request(payload)
-            movements = self.inventory.receive_invoice(invoice, scans)
-        except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError, ValueError) as exc:
-            return self._respond(start_response, "400 Bad Request", {"error": str(exc)})
 
-        return self._respond(
-            start_response,
-            "201 Created",
-            {
-                "invoice_id": invoice.invoice_id,
-                "movements": [
-                    {
-                        "movement_id": movement.movement_id,
-                        "product_id": movement.product_id,
-                        "quantity": movement.quantity,
-                        "type": movement.movement_type.value,
-                    }
-                    for movement in movements
-                ],
-            },
+class MovementCreate(BaseModel):
+    movement_id: str
+    product_id: str
+    lot_id: str
+    movement_type: MovementType
+    quantity: int
+    reason: str
+    unit_cost: Optional[Decimal] = None
+    reference_id: Optional[str] = None
+
+
+class InvoiceLineRequest(BaseModel):
+    product_id: str
+    quantity: int
+    unit_cost: Optional[Decimal] = None
+
+
+class ScanRequest(BaseModel):
+    scan_id: str
+    product_id: str
+    item_count: int = 1
+
+
+class InvoiceRequest(BaseModel):
+    invoice_id: str
+    lines: List[InvoiceLineRequest]
+    scans: List[ScanRequest]
+
+
+def _product_payload(service: InventoryService, product_id: str) -> dict:
+    product = service.get_product(product_id)
+    return {
+        "product_id": product.product_id,
+        "name": product.name,
+        "unit": product.unit,
+        "reorder_point": product.reorder_point,
+    }
+
+
+def _movement_payload(movement: Movement) -> dict:
+    return {
+        "movement_id": movement.movement_id,
+        "product_id": movement.product_id,
+        "lot_id": movement.lot_id,
+        "movement_type": movement.movement_type.value,
+        "quantity": movement.quantity,
+        "unit_cost": str(movement.unit_cost) if movement.unit_cost is not None else None,
+        "reference_id": movement.reference_id,
+        "reason": movement.reason,
+        "occurred_at": movement.occurred_at,
+    }
+
+
+def create_app(inventory: InventoryService) -> FastAPI:
+    app = FastAPI(title="HealthCore Inventory API", version="1.0.0")
+    app.state.inventory = inventory
+
+    @app.exception_handler(ValueError)
+    async def inventory_error_handler(request, error: ValueError):
+        return JSONResponse(status_code=400, content={"detail": str(error)})
+
+    @app.exception_handler(sqlite3.IntegrityError)
+    async def database_error_handler(request, error: sqlite3.IntegrityError):
+        return JSONResponse(status_code=400, content={"detail": str(error)})
+
+    @app.post("/api/products", status_code=201)
+    def create_product(payload: ProductCreate) -> dict:
+        inventory.add_product(Product(**payload.dict()))
+        return _product_payload(inventory, payload.product_id)
+
+    @app.get("/api/products")
+    def list_products() -> list:
+        return [_product_payload(inventory, product.product_id) for product in inventory.list_products()]
+
+    @app.get("/api/products/{product_id}")
+    def get_product(product_id: str) -> dict:
+        return _product_payload(inventory, product_id)
+
+    @app.patch("/api/products/{product_id}")
+    def update_product(product_id: str, payload: ProductUpdate) -> dict:
+        product = inventory.update_product(
+            product_id,
+            **{key: value for key, value in payload.dict().items() if value is not None},
         )
+        return {
+            "product_id": product.product_id,
+            "name": product.name,
+            "unit": product.unit,
+            "reorder_point": product.reorder_point,
+        }
 
-    @staticmethod
-    def _parse_invoice_request(payload: Any) -> tuple[SupplierInvoice, tuple[Scan, ...]]:
-        if not isinstance(payload, dict):
-            raise ValueError("Request body must be a JSON object")
-        invoice_data = payload.get("invoice")
-        scan_data = payload.get("scans")
-        if not isinstance(invoice_data, dict) or not isinstance(scan_data, list):
-            raise ValueError("Expected 'invoice' object and 'scans' array")
+    @app.get("/api/inventory")
+    def list_inventory() -> list:
+        return list(inventory.list_inventory())
 
-        raw_lines = invoice_data.get("lines")
-        if not isinstance(raw_lines, list):
-            raise ValueError("Invoice 'lines' must be an array")
-        try:
-            lines = tuple(
-                InvoiceLine(
-                    product_id=line["product_id"],
-                    quantity=line["quantity"],
-                )
-                for line in raw_lines
-            )
-            scans = tuple(
-                Scan(
-                    scan_id=scan["scan_id"],
-                    product_id=scan["product_id"],
-                    item_count=scan.get("item_count", 1),
-                )
-                for scan in scan_data
-            )
-            invoice_id = invoice_data["invoice_id"]
-        except (KeyError, TypeError) as exc:
-            raise ValueError(f"Malformed invoice or scan data: {exc}") from exc
-        if not isinstance(invoice_id, str):
-            raise ValueError("Invoice ID must be a string")
-        return SupplierInvoice(invoice_id=invoice_id, lines=lines), scans
+    @app.get("/api/inventory/low-stock")
+    def list_low_stock() -> list:
+        return list(inventory.get_low_stock_products())
 
-    @staticmethod
-    def _respond(
-        start_response: Callable[..., Any], status: str, payload: dict[str, Any]
-    ) -> list[bytes]:
-        body = json.dumps(payload).encode("utf-8")
-        start_response(
-            status,
-            [
-                ("Content-Type", "application/json; charset=utf-8"),
-                ("Content-Length", str(len(body))),
-            ],
+    @app.get("/api/products/{product_id}/lots")
+    def list_lots(product_id: str) -> list:
+        return [lot.__dict__ for lot in inventory.list_lots(product_id)]
+
+    @app.get("/api/products/{product_id}/movements")
+    def list_movements(product_id: str) -> list:
+        return [_movement_payload(movement) for movement in inventory.get_movements(product_id)]
+
+    @app.post("/api/movements", status_code=201)
+    def create_movement(payload: MovementCreate) -> dict:
+        movement = Movement(**payload.dict())
+        inventory.register_movement(movement)
+        return _movement_payload(inventory.get_movements(movement.product_id)[-1])
+
+    @app.post("/api/invoices/receive", status_code=201)
+    def receive_invoice(payload: InvoiceRequest) -> dict:
+        invoice = SupplierInvoice(
+            payload.invoice_id,
+            tuple(
+                InvoiceLine(line.product_id, line.quantity, line.unit_cost)
+                for line in payload.lines
+            ),
         )
-        return [body]
+        scans = tuple(
+            Scan(scan.scan_id, scan.product_id, scan.item_count) for scan in payload.scans
+        )
+        movements = inventory.receive_invoice(invoice, scans)
+        return {
+            "invoice_id": invoice.invoice_id,
+            "movements": [_movement_payload(movement) for movement in movements],
+        }
 
+    @app.post("/api/inventory/reconcile", status_code=201)
+    def reconcile_inventory(payload: dict) -> list:
+        reconciliation = InventoryReconciliation(
+            payload["reconciliation_id"], payload["actual_counts"]
+        )
+        movements = inventory.reconcile_month_end(reconciliation)
+        return [_movement_payload(movement) for movement in movements]
 
-def create_app(inventory: InventoryService) -> InventoryAPI:
-    """Factory for use with any WSGI server."""
-    return InventoryAPI(inventory)
+    return app
