@@ -4,7 +4,7 @@ Cada tarea es un bloque pequeno, implementable en orden y verificable contra los
 
 ## Orden de implementacion
 
-- [ ] **TASK-001 - Persistencia y modelo de articulos** (INV-001, INV-002): definir tablas SQLite para articulos y operaciones de alta/edicion; validar identificador, nombre, unidad y punto de reorden no negativo. El articulo no tendra columna de existencia.
+- [x] **TASK-001 - Persistencia y modelo de articulos** (INV-001, INV-002): definir tablas SQLite para articulos y operaciones de alta/edicion; validar identificador, nombre, unidad y punto de reorden no negativo. El articulo no tendra columna de existencia.
 - [ ] **TASK-002 - Identidad y relacion de lotes** (MOV-001, EXC-003): persistir lotes asociados a un articulo, crear el lote al recibir una entrada nueva dentro de la misma transaccion y rechazar un lote reutilizado para otro articulo.
 - [ ] **TASK-003 - Registro trazable de movimientos** (MOV-002, MOV-004, EXC-004): persistir entradas, salidas y ajustes con motivo requerido, marca UTC de servidor, cantidad segun tipo e inmutabilidad append-only.
 - [ ] **TASK-004 - Existencia derivada e invariante** (MOV-003, INV-004, EXC-001, EXC-002): calcular stock con vista agregada de movimientos y protegerlo en servicio y SQLite; movimientos invalidos o negativos deben revertir por completo.

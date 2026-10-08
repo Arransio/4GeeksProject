@@ -1,8 +1,12 @@
 """Inventory domain logic: stock is derived exclusively from movements."""
 
+from __future__ import annotations
+
+import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import Callable
 
 
@@ -26,10 +30,12 @@ class MovementType(str, Enum):
 
 @dataclass(frozen=True)
 class Product:
-    """Product identity; deliberately contains no stored or editable stock."""
+    """Product identity and reorder metadata; stock is never stored here."""
 
     product_id: str
     name: str
+    unit: str = "unidad"
+    reorder_point: int = 0
 
 
 @dataclass(frozen=True)
@@ -113,8 +119,15 @@ class InventoryService:
     def __init__(
         self,
         manager_credential_verifier: Callable[[str, str], bool] | None = None,
+        database_path: str = ":memory:",
     ) -> None:
+        schema_path = Path(__file__).with_name("schema.sql")
+        self._connection = sqlite3.connect(database_path)
+        self._connection.row_factory = sqlite3.Row
+        self._connection.executescript(schema_path.read_text(encoding="utf-8"))
+        self._migrate_product_columns()
         self._products: dict[str, Product] = {}
+        self._load_products()
         self._movements: list[Movement] = []
         self._movement_ids: set[str] = set()
         self._scan_ids: set[str] = set()
@@ -125,10 +138,96 @@ class InventoryService:
         self._lock_reasons: dict[str, StockWouldBecomeNegative] = {}
         self._manager_credential_verifier = manager_credential_verifier
 
+    def _migrate_product_columns(self) -> None:
+        columns = {
+            row["name"] for row in self._connection.execute("PRAGMA table_info(products)")
+        }
+        with self._connection:
+            if "unit" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE products ADD COLUMN unit TEXT NOT NULL DEFAULT 'unidad'"
+                )
+            if "reorder_point" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE products ADD COLUMN reorder_point INTEGER NOT NULL DEFAULT 0"
+                )
+
+    def _load_products(self) -> None:
+        rows = self._connection.execute(
+            "SELECT product_id, name, unit, reorder_point FROM products"
+        ).fetchall()
+        self._products = {
+            row["product_id"]: Product(
+                row["product_id"], row["name"], row["unit"], row["reorder_point"]
+            )
+            for row in rows
+        }
+
+    def close(self) -> None:
+        self._connection.close()
+
     def add_product(self, product: Product) -> None:
+        self._validate_product(product)
         if product.product_id in self._products:
             raise ValueError(f"Product already exists: {product.product_id}")
+        with self._connection:
+            self._connection.execute(
+                """INSERT INTO products (product_id, name, unit, reorder_point)
+                   VALUES (?, ?, ?, ?)""",
+                (product.product_id, product.name, product.unit, product.reorder_point),
+            )
         self._products[product.product_id] = product
+
+    @staticmethod
+    def _validate_product(product: Product) -> None:
+        if not product.product_id or not product.product_id.strip():
+            raise ValueError("Product identifier must not be empty")
+        if not product.name or not product.name.strip():
+            raise ValueError("Product name must not be empty")
+        if not product.unit or not product.unit.strip():
+            raise ValueError("Product unit must not be empty")
+        if type(product.reorder_point) is not int or product.reorder_point < 0:
+            raise ValueError("Reorder point must be a non-negative integer")
+
+    def get_product(self, product_id: str) -> Product:
+        try:
+            return self._products[product_id]
+        except KeyError as error:
+            raise ValueError(f"Unknown product: {product_id}") from error
+
+    def list_products(self) -> tuple[Product, ...]:
+        rows = self._connection.execute(
+            "SELECT product_id, name, unit, reorder_point FROM products ORDER BY product_id"
+        ).fetchall()
+        return tuple(
+            Product(row["product_id"], row["name"], row["unit"], row["reorder_point"])
+            for row in rows
+        )
+
+    def update_product(
+        self,
+        product_id: str,
+        *,
+        name: str | None = None,
+        unit: str | None = None,
+        reorder_point: int | None = None,
+    ) -> Product:
+        current = self.get_product(product_id)
+        updated = Product(
+            product_id=product_id,
+            name=current.name if name is None else name,
+            unit=current.unit if unit is None else unit,
+            reorder_point=current.reorder_point if reorder_point is None else reorder_point,
+        )
+        self._validate_product(updated)
+        with self._connection:
+            self._connection.execute(
+                """UPDATE products SET name = ?, unit = ?, reorder_point = ?
+                   WHERE product_id = ?""",
+                (updated.name, updated.unit, updated.reorder_point, product_id),
+            )
+        self._products[product_id] = updated
+        return updated
 
     def _ensure_terminal_unlocked(self, terminal_id: str) -> None:
         if terminal_id in self._locked_terminals:

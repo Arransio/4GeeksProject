@@ -1,11 +1,14 @@
 """Tests for stock aggregation from immutable movement records."""
 
+from __future__ import annotations
+
 import unittest
 import io
 import json
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from inventory import (
     InventoryService,
@@ -50,6 +53,43 @@ class InventoryStockTests(unittest.TestCase):
         self.assertFalse(hasattr(product, "stock"))
         with self.assertRaises(AttributeError):
             product.stock = 10  # type: ignore[attr-defined]
+
+    def test_product_can_be_edited_and_listed_without_changing_stock(self) -> None:
+        self.inventory.register_movement(
+            Movement("M-PRODUCT-1", "P-1", MovementType.RECEIPT, 7)
+        )
+
+        updated = self.inventory.update_product(
+            "P-1", name="Examination gloves", unit="box", reorder_point=4
+        )
+
+        self.assertEqual(updated.name, "Examination gloves")
+        self.assertEqual(updated.unit, "box")
+        self.assertEqual(updated.reorder_point, 4)
+        self.assertEqual(self.inventory.get_stock("P-1"), 7)
+        self.assertEqual(self.inventory.list_products(), (updated,))
+
+    def test_product_catalog_persists_across_service_restarts(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            database_path = str(Path(temporary_directory) / "inventory.sqlite3")
+            service = InventoryService(database_path=database_path)
+            service.add_product(Product("P-PERSIST", "Exam gloves", "box", 3))
+            service.close()
+
+            reopened = InventoryService(database_path=database_path)
+            try:
+                self.assertEqual(
+                    reopened.get_product("P-PERSIST"),
+                    Product("P-PERSIST", "Exam gloves", "box", 3),
+                )
+            finally:
+                reopened.close()
+
+    def test_product_rejects_invalid_reorder_point_and_empty_unit(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Reorder point"):
+            self.inventory.add_product(Product("P-BAD", "Gloves", "box", -1))
+        with self.assertRaisesRegex(ValueError, "unit"):
+            self.inventory.add_product(Product("P-BAD", "Gloves", "", 0))
 
     def test_duplicate_movement_is_rejected(self) -> None:
         movement = Movement("M-1", "P-1", MovementType.RECEIPT, 3)

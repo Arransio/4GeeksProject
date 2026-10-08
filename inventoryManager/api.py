@@ -1,5 +1,7 @@
 """Small standard-library WSGI API for the inventory-manager sketch."""
 
+from __future__ import annotations
+
 import json
 from typing import Any, Callable, Iterable
 

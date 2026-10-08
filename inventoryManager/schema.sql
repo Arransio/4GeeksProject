@@ -3,7 +3,9 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS products (
     product_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'unidad',
+    reorder_point INTEGER NOT NULL DEFAULT 0 CHECK (reorder_point >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS movements (
