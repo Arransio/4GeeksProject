@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 from inventory import (
     InventoryService,
     InventoryReconciliation,
+    Lot,
     InvoiceLine,
     InvoiceValidationError,
     InvalidScan,
@@ -90,6 +91,35 @@ class InventoryStockTests(unittest.TestCase):
             self.inventory.add_product(Product("P-BAD", "Gloves", "box", -1))
         with self.assertRaisesRegex(ValueError, "unit"):
             self.inventory.add_product(Product("P-BAD", "Gloves", "", 0))
+
+    def test_lot_belongs_to_one_existing_product(self) -> None:
+        self.inventory.add_product(Product("P-2", "Exam masks", "box", 2))
+        self.inventory.add_lot(Lot("LOT-1", "P-1"))
+
+        self.assertEqual(self.inventory.get_lot("LOT-1"), Lot("LOT-1", "P-1"))
+        self.assertEqual(self.inventory.list_lots("P-1"), (Lot("LOT-1", "P-1"),))
+        self.assertEqual(self.inventory.list_lots("P-2"), ())
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.inventory.add_lot(Lot("LOT-1", "P-2"))
+
+    def test_lot_rejects_unknown_product_and_persists(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unknown product"):
+            self.inventory.add_lot(Lot("LOT-UNKNOWN", "P-404"))
+
+        with TemporaryDirectory() as temporary_directory:
+            database_path = str(Path(temporary_directory) / "inventory.sqlite3")
+            service = InventoryService(database_path=database_path)
+            service.add_product(Product("P-LOT", "Test kits", "kit", 1))
+            service.add_lot(Lot("LOT-PERSIST", "P-LOT"))
+            service.close()
+
+            reopened = InventoryService(database_path=database_path)
+            try:
+                self.assertEqual(
+                    reopened.get_lot("LOT-PERSIST"), Lot("LOT-PERSIST", "P-LOT")
+                )
+            finally:
+                reopened.close()
 
     def test_duplicate_movement_is_rejected(self) -> None:
         movement = Movement("M-1", "P-1", MovementType.RECEIPT, 3)
@@ -323,31 +353,57 @@ class InventoryStockTests(unittest.TestCase):
         connection.execute(
             "INSERT INTO products (product_id, name) VALUES (?, ?)", ("P-DB", "Tea")
         )
-        with self.assertRaisesRegex(sqlite3.IntegrityError, "stock cannot be negative"):
-            connection.execute(
-                """INSERT INTO movements
-                   (movement_id, product_id, movement_type, quantity)
-                   VALUES (?, ?, ?, ?)""",
-                ("M-DB-1", "P-DB", "sale", 1),
-            )
-
         connection.execute(
-            """INSERT INTO movements
-               (movement_id, product_id, movement_type, quantity)
-               VALUES (?, ?, ?, ?)""",
-            ("M-DB-2", "P-DB", "receipt", 3),
+            "INSERT INTO lots (lot_id, product_id) VALUES (?, ?)", ("LOT-DB", "P-DB")
         )
         with self.assertRaisesRegex(sqlite3.IntegrityError, "stock cannot be negative"):
             connection.execute(
                 """INSERT INTO movements
-                   (movement_id, product_id, movement_type, quantity)
-                   VALUES (?, ?, ?, ?)""",
-                ("M-DB-3", "P-DB", "sale", 4),
+                   (movement_id, product_id, lot_id, movement_type, quantity)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("M-DB-1", "P-DB", "LOT-DB", "sale", 1),
+            )
+
+        connection.execute(
+            """INSERT INTO movements
+               (movement_id, product_id, lot_id, movement_type, quantity)
+               VALUES (?, ?, ?, ?, ?)""",
+            ("M-DB-2", "P-DB", "LOT-DB", "receipt", 3),
+        )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "stock cannot be negative"):
+            connection.execute(
+                """INSERT INTO movements
+                   (movement_id, product_id, lot_id, movement_type, quantity)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("M-DB-3", "P-DB", "LOT-DB", "sale", 4),
             )
         stock = connection.execute(
             "SELECT stock FROM product_stock WHERE product_id = ?", ("P-DB",)
         ).fetchone()[0]
         self.assertEqual(stock, 3)
+        connection.close()
+
+    def test_sqlite_schema_rejects_lot_owned_by_another_product(self) -> None:
+        schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
+        connection = sqlite3.connect(":memory:")
+        connection.executescript(schema)
+        connection.execute(
+            "INSERT INTO products (product_id, name) VALUES (?, ?)", ("P-A", "Gloves")
+        )
+        connection.execute(
+            "INSERT INTO products (product_id, name) VALUES (?, ?)", ("P-B", "Masks")
+        )
+        connection.execute(
+            "INSERT INTO lots (lot_id, product_id) VALUES (?, ?)", ("LOT-A", "P-A")
+        )
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            connection.execute(
+                """INSERT INTO movements
+                   (movement_id, product_id, lot_id, movement_type, quantity)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("M-WRONG-LOT", "P-B", "LOT-A", "receipt", 2),
+            )
         connection.close()
 
 

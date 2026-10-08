@@ -39,6 +39,14 @@ class Product:
 
 
 @dataclass(frozen=True)
+class Lot:
+    """A lot identifier scoped to one product."""
+
+    lot_id: str
+    product_id: str
+
+
+@dataclass(frozen=True)
 class Movement:
     """Immutable record of one inventory operation."""
 
@@ -165,6 +173,33 @@ class InventoryService:
 
     def close(self) -> None:
         self._connection.close()
+
+    def add_lot(self, lot: Lot) -> None:
+        if not lot.lot_id or not lot.lot_id.strip():
+            raise ValueError("Lot identifier must not be empty")
+        if lot.product_id not in self._products:
+            raise ValueError(f"Unknown product: {lot.product_id}")
+        with self._connection:
+            self._connection.execute(
+                "INSERT INTO lots (lot_id, product_id) VALUES (?, ?)",
+                (lot.lot_id, lot.product_id),
+            )
+
+    def get_lot(self, lot_id: str) -> Lot:
+        row = self._connection.execute(
+            "SELECT lot_id, product_id FROM lots WHERE lot_id = ?", (lot_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Unknown lot: {lot_id}")
+        return Lot(row["lot_id"], row["product_id"])
+
+    def list_lots(self, product_id: str) -> tuple[Lot, ...]:
+        self.get_product(product_id)
+        rows = self._connection.execute(
+            "SELECT lot_id, product_id FROM lots WHERE product_id = ? ORDER BY lot_id",
+            (product_id,),
+        ).fetchall()
+        return tuple(Lot(row["lot_id"], row["product_id"]) for row in rows)
 
     def add_product(self, product: Product) -> None:
         self._validate_product(product)

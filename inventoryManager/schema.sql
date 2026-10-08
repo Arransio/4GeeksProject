@@ -8,15 +8,23 @@ CREATE TABLE IF NOT EXISTS products (
     reorder_point INTEGER NOT NULL DEFAULT 0 CHECK (reorder_point >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS lots (
+    lot_id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL REFERENCES products(product_id),
+    UNIQUE (lot_id, product_id)
+);
+
 CREATE TABLE IF NOT EXISTS movements (
     movement_id TEXT PRIMARY KEY,
     product_id TEXT NOT NULL REFERENCES products(product_id),
+    lot_id TEXT NOT NULL,
     movement_type TEXT NOT NULL CHECK (
         movement_type IN ('receipt', 'return', 'sale', 'shrinkage', 'inventory_gain')
     ),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     unit_cost NUMERIC,
-    reference_id TEXT
+    reference_id TEXT,
+    FOREIGN KEY (lot_id, product_id) REFERENCES lots(lot_id, product_id)
 );
 
 CREATE VIEW IF NOT EXISTS product_stock AS
