@@ -19,9 +19,12 @@ CREATE TABLE IF NOT EXISTS movements (
     product_id TEXT NOT NULL REFERENCES products(product_id),
     lot_id TEXT NOT NULL,
     movement_type TEXT NOT NULL CHECK (
-        movement_type IN ('receipt', 'return', 'sale', 'shrinkage', 'inventory_gain')
+        movement_type IN ('receipt', 'return', 'sale', 'shrinkage', 'inventory_gain', 'adjustment')
     ),
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    quantity INTEGER NOT NULL CHECK (
+        (movement_type = 'adjustment' AND quantity != 0)
+        OR (movement_type != 'adjustment' AND quantity > 0)
+    ),
     unit_cost NUMERIC,
     reference_id TEXT,
     reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
@@ -38,6 +41,8 @@ SELECT
                 THEN m.quantity
             WHEN m.movement_type IN ('sale', 'shrinkage')
                 THEN -m.quantity
+            WHEN m.movement_type = 'adjustment'
+                THEN m.quantity
             ELSE 0
         END
     ), 0) AS stock
@@ -53,6 +58,8 @@ WHEN COALESCE((
     SELECT stock FROM product_stock WHERE product_id = NEW.product_id
 ), 0) + CASE
     WHEN NEW.movement_type IN ('receipt', 'return', 'inventory_gain')
+        THEN NEW.quantity
+    WHEN NEW.movement_type = 'adjustment'
         THEN NEW.quantity
     ELSE -NEW.quantity
 END < 0

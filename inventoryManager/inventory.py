@@ -20,6 +20,7 @@ class MovementType(str, Enum):
     SALE = "sale"
     SHRINKAGE = "shrinkage"
     INVENTORY_GAIN = "inventory_gain"
+    ADJUSTMENT = "adjustment"
 
     @property
     def sign(self) -> int:
@@ -64,6 +65,8 @@ class Movement:
 
     @property
     def stock_delta(self) -> int:
+        if self.movement_type == MovementType.ADJUSTMENT:
+            return self.quantity
         return self.movement_type.sign * self.quantity
 
 
@@ -370,7 +373,12 @@ class InventoryService:
                 raise ValueError(f"Unknown product: {movement.product_id}")
             if movement.movement_id in self._movement_ids or movement.movement_id in seen_movement_ids:
                 raise ValueError(f"Movement already exists: {movement.movement_id}")
-            if type(movement.quantity) is not int or movement.quantity <= 0:
+            if type(movement.quantity) is not int:
+                raise ValueError("Movement quantity must be an integer")
+            if movement.movement_type == MovementType.ADJUSTMENT:
+                if movement.quantity == 0:
+                    raise ValueError("Adjustment quantity must not be zero")
+            elif movement.quantity <= 0:
                 raise ValueError("Movement quantity must be a positive integer")
             if not isinstance(movement.movement_type, MovementType):
                 raise ValueError("Unsupported movement type")
@@ -379,7 +387,11 @@ class InventoryService:
             lot_id = movement.lot_id
             if lot_id is None:
                 product_lots = self.list_lots(movement.product_id)
-                if movement.movement_type in (MovementType.RECEIPT, MovementType.INVENTORY_GAIN):
+                if movement.movement_type in (
+                    MovementType.RECEIPT,
+                    MovementType.INVENTORY_GAIN,
+                    MovementType.ADJUSTMENT,
+                ) and movement.stock_delta > 0:
                     if len(product_lots) == 1:
                         lot_id = product_lots[0].lot_id
                     else:
@@ -398,6 +410,7 @@ class InventoryService:
                     if movement.movement_type not in (
                         MovementType.RECEIPT,
                         MovementType.INVENTORY_GAIN,
+                        MovementType.ADJUSTMENT,
                     ):
                         raise
                     lots_to_create[lot_id] = movement.product_id

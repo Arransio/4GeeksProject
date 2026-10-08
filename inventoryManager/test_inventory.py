@@ -188,6 +188,25 @@ class InventoryStockTests(unittest.TestCase):
                 "DELETE FROM movements WHERE movement_id = ?", ("M-IMMUTABLE",)
             )
 
+    def test_signed_adjustments_update_stock_and_reject_zero_or_negative_result(self) -> None:
+        self.inventory.register_movement(
+            make_movement("M-ADJUST-UP", "P-1", MovementType.ADJUSTMENT, 5)
+        )
+        self.inventory.register_movement(
+            make_movement("M-ADJUST-DOWN", "P-1", MovementType.ADJUSTMENT, -2)
+        )
+
+        self.assertEqual(self.inventory.get_stock("P-1"), 3)
+        with self.assertRaisesRegex(ValueError, "must not be zero"):
+            self.inventory.register_movement(
+                make_movement("M-ADJUST-ZERO", "P-1", MovementType.ADJUSTMENT, 0)
+            )
+        with self.assertRaises(StockWouldBecomeNegative):
+            self.inventory.register_movement(
+                make_movement("M-ADJUST-NEGATIVE", "P-1", MovementType.ADJUSTMENT, -4)
+            )
+        self.assertEqual(self.inventory.get_stock("P-1"), 3)
+
     def test_movements_persist_across_service_restarts(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             database_path = str(Path(temporary_directory) / "movement.sqlite3")

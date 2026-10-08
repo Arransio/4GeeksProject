@@ -6,7 +6,7 @@ API FastAPI para gestionar articulos e insumos configurables de las clinicas de 
 
 - Articulos persistidos con identificador, nombre, unidad y punto de reorden; no tienen campo editable de stock.
 - Lotes persistidos y asociados a un solo articulo.
-- Movimientos `receipt`, `return`, `sale`, `shrinkage` o `inventory_gain` con lote, razon obligatoria y marca temporal UTC.
+- Movimientos `receipt`, `return`, `sale`, `shrinkage`, `inventory_gain` o `adjustment` con lote, razon obligatoria y marca temporal UTC. Un ajuste usa una cantidad firmada no nula.
 - Stock derivado mediante la vista SQLite `product_stock`; las restricciones impiden negativos y lotes ajenos.
 - Historial append-only: SQLite rechaza UPDATE y DELETE de movimientos.
 - Inventario bajo reorden disponible cuando `stock < reorder_point`; en igualdad no genera alerta.
