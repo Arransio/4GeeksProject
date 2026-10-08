@@ -6,6 +6,15 @@ const movementForm = document.querySelector("#movement-form");
 const inventoryRows = document.querySelector("#inventory-rows");
 const notice = document.querySelector("#notice");
 
+document.querySelectorAll("[data-app-link]").forEach((link) => {
+  const appName = link.dataset.appLink;
+  link.href = `${window.location.protocol}//${window.location.hostname}:${link.dataset.port}/`;
+  if (appName === "inventory") {
+    link.classList.add("active");
+    link.setAttribute("aria-current", "page");
+  }
+});
+
 let inventory = [];
 let editingProductId = null;
 let noticeTimer;

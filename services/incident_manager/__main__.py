@@ -15,7 +15,7 @@ def main() -> None:
     )
     database_path = os.environ.get("INCIDENT_DATABASE", "incident-manager.sqlite3")
     host = os.environ.get("INCIDENT_HOST", "127.0.0.1")
-    port = int(os.environ.get("INCIDENT_PORT", "8000"))
+    port = int(os.environ.get("INCIDENT_PORT", "8765"))
     service = IncidentService(database_path, load_catalogs(catalogs_path))
     app = create_app(service)
     try:

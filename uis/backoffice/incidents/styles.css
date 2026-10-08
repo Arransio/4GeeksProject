@@ -124,8 +124,8 @@ tbody tr:hover { background: #f8fbf8; }
   .app-shell { grid-template-columns: 70px minmax(0, 1fr); }
   .sidebar { padding: 20px 10px 14px; align-items: center; }
   .brand { padding: 0; }
-  .brand > span:last-child, .nav-caption, .nav-item:not(.active) { display: none; }
-  .nav-item { width: 48px; height: 48px; justify-content: center; padding: 0; margin-top: 38px; font-size: 0; }
+  .brand > span:last-child, .nav-caption { display: none; }
+  .nav-item { width: 48px; height: 48px; justify-content: center; padding: 0; margin-top: 8px; font-size: 0; }
   .nav-symbol { font-size: 10px; }
   .sidebar-bottom { padding: 14px 0 0; }
   .region-label { font-size: 0; justify-content: center; }

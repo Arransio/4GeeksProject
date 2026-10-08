@@ -557,6 +557,8 @@ class InventoryStockTests(unittest.TestCase):
 
         self.assertEqual(page.status_code, 200)
         self.assertIn("Inventario", page.text)
+        self.assertIn('data-app-link="incidents" data-port="8765"', page.text)
+        self.assertIn('data-app-link="inventory" data-port="8766"', page.text)
         self.assertEqual(stylesheet.status_code, 200)
         self.assertEqual(script.status_code, 200)
 

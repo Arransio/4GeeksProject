@@ -25,7 +25,7 @@ INCIDENT_DATABASE=incident-manager.sqlite3 \
 PYTHONPATH=. python3 -m services.incident_manager
 ```
 
-Variables opcionales: `INCIDENT_CATALOGS_FILE` (por defecto `catalogs.json` del servicio), `INCIDENT_HOST` (por defecto `127.0.0.1`) e `INCIDENT_PORT` (por defecto `8000`). Abre `http://127.0.0.1:8000/`.
+Variables opcionales: `INCIDENT_CATALOGS_FILE` (por defecto `catalogs.json` del servicio), `INCIDENT_HOST` (por defecto `127.0.0.1`) e `INCIDENT_PORT` (por defecto `8765`). Abre `http://127.0.0.1:8765/`.
 
 ## API
 

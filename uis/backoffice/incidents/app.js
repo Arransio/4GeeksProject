@@ -7,6 +7,15 @@ const detailPanel = document.querySelector("#detail-panel");
 const panelScrim = document.querySelector("#panel-scrim");
 const notice = document.querySelector("#notice");
 
+document.querySelectorAll("[data-app-link]").forEach((link) => {
+  const appName = link.dataset.appLink;
+  link.href = `${window.location.protocol}//${window.location.hostname}:${link.dataset.port}/`;
+  if (appName === "incidents") {
+    link.classList.add("active");
+    link.setAttribute("aria-current", "page");
+  }
+});
+
 let catalogs;
 let currentIncident;
 let noticeTimer;

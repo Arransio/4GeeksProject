@@ -23,7 +23,7 @@ python3 -m pip install -r inventoryManager/requirements.txt
 PYTHONPATH=inventoryManager INVENTORY_DATABASE=inventory.sqlite3 python3 -m inventoryManager
 ```
 
-La API escucha en `http://127.0.0.1:8001`. Variables opcionales: `INVENTORY_HOST` y `INVENTORY_PORT`.
+La API y el backoffice escuchan en `http://127.0.0.1:8766`. El enlace de Incidencias abre `http://127.0.0.1:8765`; ambos puntos se encuentran en la navegacion lateral de las dos pantallas. Variables opcionales: `INVENTORY_HOST` y `INVENTORY_PORT`.
 
 ## API
 
