@@ -17,7 +17,7 @@ from inventory import (
     InvoiceLine,
     InvoiceValidationError,
     InvalidScan,
-    Movement,
+    Movement as InventoryMovement,
     MovementType,
     Product,
     Scan,
@@ -28,26 +28,36 @@ from inventory import (
 from api import create_app
 
 
+def make_movement(*args, **kwargs):
+    kwargs.setdefault("lot_id", "LOT-TEST")
+    kwargs.setdefault("reason", "Test fixture movement")
+    return InventoryMovement(*args, **kwargs)
+
+
 class InventoryStockTests(unittest.TestCase):
     def setUp(self) -> None:
         self.inventory = InventoryService()
         self.inventory.add_product(Product(product_id="P-1", name="Coffee"))
+        self.inventory.add_lot(Lot("LOT-TEST", "P-1"))
 
     def test_stock_is_aggregated_from_all_movements(self) -> None:
         self.inventory.register_movement(
-            Movement("M-1", "P-1", MovementType.RECEIPT, 12, Decimal("2.50"))
+            make_movement("M-1", "P-1", MovementType.RECEIPT, 12, Decimal("2.50"))
         )
         self.inventory.register_movement(
-            Movement("M-2", "P-1", MovementType.RETURN, 2)
+            make_movement("M-2", "P-1", MovementType.RETURN, 2)
         )
         self.inventory.register_movement(
-            Movement("M-3", "P-1", MovementType.SALE, 5)
+            make_movement("M-3", "P-1", MovementType.SALE, 5)
         )
         self.inventory.register_movement(
-            Movement("M-4", "P-1", MovementType.SHRINKAGE, 1)
+            make_movement("M-4", "P-1", MovementType.SHRINKAGE, 1)
         )
 
         self.assertEqual(self.inventory.get_stock("P-1"), 8)
+        movements = self.inventory.get_movements("P-1")
+        self.assertTrue(all(movement.reason for movement in movements))
+        self.assertTrue(all(movement.occurred_at for movement in movements))
 
     def test_product_has_no_direct_stock_field(self) -> None:
         product = self.inventory._products["P-1"]
@@ -57,7 +67,7 @@ class InventoryStockTests(unittest.TestCase):
 
     def test_product_can_be_edited_and_listed_without_changing_stock(self) -> None:
         self.inventory.register_movement(
-            Movement("M-PRODUCT-1", "P-1", MovementType.RECEIPT, 7)
+            make_movement("M-PRODUCT-1", "P-1", MovementType.RECEIPT, 7)
         )
 
         updated = self.inventory.update_product(
@@ -97,7 +107,10 @@ class InventoryStockTests(unittest.TestCase):
         self.inventory.add_lot(Lot("LOT-1", "P-1"))
 
         self.assertEqual(self.inventory.get_lot("LOT-1"), Lot("LOT-1", "P-1"))
-        self.assertEqual(self.inventory.list_lots("P-1"), (Lot("LOT-1", "P-1"),))
+        self.assertEqual(
+            self.inventory.list_lots("P-1"),
+            (Lot("LOT-1", "P-1"), Lot("LOT-TEST", "P-1")),
+        )
         self.assertEqual(self.inventory.list_lots("P-2"), ())
         with self.assertRaises(sqlite3.IntegrityError):
             self.inventory.add_lot(Lot("LOT-1", "P-2"))
@@ -122,16 +135,116 @@ class InventoryStockTests(unittest.TestCase):
                 reopened.close()
 
     def test_duplicate_movement_is_rejected(self) -> None:
-        movement = Movement("M-1", "P-1", MovementType.RECEIPT, 3)
+        movement = make_movement("M-1", "P-1", MovementType.RECEIPT, 3)
         self.inventory.register_movement(movement)
 
         with self.assertRaisesRegex(ValueError, "Movement already exists"):
             self.inventory.register_movement(movement)
 
+    def test_movement_requires_reason_and_is_persisted_as_immutable(self) -> None:
+        with self.assertRaisesRegex(ValueError, "reason"):
+            self.inventory.register_movement(
+                InventoryMovement("M-NO-REASON", "P-1", MovementType.RECEIPT, 2)
+            )
+
+        movement = make_movement("M-IMMUTABLE", "P-1", MovementType.RECEIPT, 2)
+        self.inventory.register_movement(movement)
+        stored = self.inventory._connection.execute(
+            "SELECT reason, occurred_at FROM movements WHERE movement_id = ?",
+            ("M-IMMUTABLE",),
+        ).fetchone()
+        self.assertEqual(stored["reason"], "Test fixture movement")
+        self.assertTrue(stored["occurred_at"].endswith("+00:00"))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+            self.inventory._connection.execute(
+                "UPDATE movements SET reason = 'changed' WHERE movement_id = ?",
+                ("M-IMMUTABLE",),
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+            self.inventory._connection.execute(
+                "DELETE FROM movements WHERE movement_id = ?", ("M-IMMUTABLE",)
+            )
+
+    def test_movements_persist_across_service_restarts(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            database_path = str(Path(temporary_directory) / "movement.sqlite3")
+            service = InventoryService(database_path=database_path)
+            service.add_product(Product("P-RESTART", "Gloves", "box", 2))
+            service.add_lot(Lot("LOT-RESTART", "P-RESTART"))
+            service.register_movement(
+                make_movement(
+                    "M-RESTART",
+                    "P-RESTART",
+                    MovementType.RECEIPT,
+                    5,
+                    lot_id="LOT-RESTART",
+                    reason="Clinic delivery",
+                )
+            )
+            service.close()
+
+            reopened = InventoryService(database_path=database_path)
+            try:
+                self.assertEqual(reopened.get_stock("P-RESTART"), 5)
+                movement = reopened.get_movements("P-RESTART")[0]
+                self.assertEqual(movement.reason, "Clinic delivery")
+                self.assertEqual(movement.lot_id, "LOT-RESTART")
+                self.assertTrue(movement.occurred_at)
+            finally:
+                reopened.close()
+
+    def test_legacy_database_migrates_existing_movements(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            database_path = str(Path(temporary_directory) / "legacy.sqlite3")
+            connection = sqlite3.connect(database_path)
+            connection.executescript(
+                """
+                CREATE TABLE products (product_id TEXT PRIMARY KEY, name TEXT NOT NULL);
+                CREATE TABLE movements (
+                    movement_id TEXT PRIMARY KEY,
+                    product_id TEXT NOT NULL,
+                    movement_type TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    unit_cost NUMERIC,
+                    reference_id TEXT
+                );
+                INSERT INTO products VALUES ('P-LEGACY', 'Gloves');
+                INSERT INTO movements VALUES ('M-LEGACY', 'P-LEGACY', 'receipt', 6, NULL, 'old invoice');
+                """
+            )
+            connection.close()
+
+            migrated = InventoryService(database_path=database_path)
+            try:
+                movements = migrated.get_movements("P-LEGACY")
+                self.assertEqual(migrated.get_stock("P-LEGACY"), 6)
+                self.assertEqual(movements[0].reason, "Legacy movement")
+                self.assertTrue(movements[0].lot_id.startswith("LEGACY-"))
+                self.assertTrue(movements[0].occurred_at)
+            finally:
+                migrated.close()
+
+    def test_new_lot_and_movement_are_rolled_back_together(self) -> None:
+        movement = make_movement(
+            "M-ATOMIC-1",
+            "P-1",
+            MovementType.RECEIPT,
+            2,
+            lot_id="LOT-ATOMIC",
+            reason="Clinic delivery",
+        )
+        self.inventory._movement_ids.add("M-ATOMIC-1")
+
+        with self.assertRaisesRegex(ValueError, "Movement already exists"):
+            self.inventory._commit_movements((movement,))
+
+        with self.assertRaisesRegex(ValueError, "Unknown lot"):
+            self.inventory.get_lot("LOT-ATOMIC")
+
     def test_stock_cannot_fall_below_zero(self) -> None:
         with self.assertRaises(StockWouldBecomeNegative) as context:
             self.inventory.register_movement(
-                Movement("M-1", "P-1", MovementType.SALE, 1)
+                make_movement("M-1", "P-1", MovementType.SALE, 1)
             )
 
         self.assertEqual(context.exception.current_stock, 0)
@@ -141,12 +254,12 @@ class InventoryStockTests(unittest.TestCase):
 
     def test_movement_cannot_take_positive_stock_below_zero(self) -> None:
         self.inventory.register_movement(
-            Movement("M-1", "P-1", MovementType.RECEIPT, 4)
+            make_movement("M-1", "P-1", MovementType.RECEIPT, 4)
         )
 
         with self.assertRaises(StockWouldBecomeNegative):
             self.inventory.register_movement(
-                Movement("M-2", "P-1", MovementType.SALE, 5)
+                make_movement("M-2", "P-1", MovementType.SALE, 5)
             )
 
         self.assertEqual(self.inventory.get_stock("P-1"), 4)
@@ -232,7 +345,7 @@ class InventoryStockTests(unittest.TestCase):
 
     def test_checkout_sale_reduces_stock(self) -> None:
         self.inventory.register_movement(
-            Movement("M-20", "P-1", MovementType.RECEIPT, 3)
+            make_movement("M-20", "P-1", MovementType.RECEIPT, 3)
         )
 
         movements = self.inventory.record_sale(
@@ -245,7 +358,7 @@ class InventoryStockTests(unittest.TestCase):
 
     def test_checkout_sale_that_exceeds_stock_locks_terminal(self) -> None:
         self.inventory.register_movement(
-            Movement("M-21", "P-1", MovementType.RECEIPT, 1)
+            make_movement("M-21", "P-1", MovementType.RECEIPT, 1)
         )
 
         with self.assertRaises(StockWouldBecomeNegative):
@@ -262,7 +375,7 @@ class InventoryStockTests(unittest.TestCase):
 
     def test_month_end_reconciliation_registers_shrinkage(self) -> None:
         self.inventory.register_movement(
-            Movement("M-22", "P-1", MovementType.RECEIPT, 8)
+            make_movement("M-22", "P-1", MovementType.RECEIPT, 8)
         )
 
         movements = self.inventory.reconcile_month_end(
@@ -289,10 +402,11 @@ class InventoryStockTests(unittest.TestCase):
             )
         )
         self.inventory.add_product(Product("P-1", "Coffee"))
+        self.inventory.add_lot(Lot("LOT-TEST", "P-1"))
 
         with self.assertRaises(StockWouldBecomeNegative):
             self.inventory.register_movement(
-                Movement("M-23", "P-1", MovementType.SALE, 1), "manual-terminal"
+                make_movement("M-23", "P-1", MovementType.SALE, 1), "manual-terminal"
             )
 
         self.assertTrue(self.inventory.is_terminal_locked("manual-terminal"))
@@ -301,7 +415,7 @@ class InventoryStockTests(unittest.TestCase):
         )
         with self.assertRaises(TerminalLockedError):
             self.inventory.register_movement(
-                Movement("M-24", "P-1", MovementType.RECEIPT, 1), "manual-terminal"
+                make_movement("M-24", "P-1", MovementType.RECEIPT, 1), "manual-terminal"
             )
 
         self.assertTrue(
@@ -309,7 +423,7 @@ class InventoryStockTests(unittest.TestCase):
         )
         self.assertFalse(self.inventory.is_terminal_locked("manual-terminal"))
         self.inventory.register_movement(
-            Movement("M-25", "P-1", MovementType.RECEIPT, 2), "manual-terminal"
+            make_movement("M-25", "P-1", MovementType.RECEIPT, 2), "manual-terminal"
         )
         self.assertEqual(self.inventory.get_stock("P-1"), 2)
 
@@ -359,23 +473,23 @@ class InventoryStockTests(unittest.TestCase):
         with self.assertRaisesRegex(sqlite3.IntegrityError, "stock cannot be negative"):
             connection.execute(
                 """INSERT INTO movements
-                   (movement_id, product_id, lot_id, movement_type, quantity)
-                   VALUES (?, ?, ?, ?, ?)""",
-                ("M-DB-1", "P-DB", "LOT-DB", "sale", 1),
+                         (movement_id, product_id, lot_id, movement_type, quantity, reason, occurred_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                     ("M-DB-1", "P-DB", "LOT-DB", "sale", 1, "Test sale", "2026-10-06T00:00:00+00:00"),
             )
 
         connection.execute(
             """INSERT INTO movements
-               (movement_id, product_id, lot_id, movement_type, quantity)
-               VALUES (?, ?, ?, ?, ?)""",
-            ("M-DB-2", "P-DB", "LOT-DB", "receipt", 3),
+                    (movement_id, product_id, lot_id, movement_type, quantity, reason, occurred_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                ("M-DB-2", "P-DB", "LOT-DB", "receipt", 3, "Test receipt", "2026-10-06T00:00:00+00:00"),
         )
         with self.assertRaisesRegex(sqlite3.IntegrityError, "stock cannot be negative"):
             connection.execute(
                 """INSERT INTO movements
-                   (movement_id, product_id, lot_id, movement_type, quantity)
-                   VALUES (?, ?, ?, ?, ?)""",
-                ("M-DB-3", "P-DB", "LOT-DB", "sale", 4),
+                         (movement_id, product_id, lot_id, movement_type, quantity, reason, occurred_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                     ("M-DB-3", "P-DB", "LOT-DB", "sale", 4, "Test sale", "2026-10-06T00:00:00+00:00"),
             )
         stock = connection.execute(
             "SELECT stock FROM product_stock WHERE product_id = ?", ("P-DB",)

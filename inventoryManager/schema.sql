@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS movements (
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     unit_cost NUMERIC,
     reference_id TEXT,
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    occurred_at TEXT NOT NULL,
     FOREIGN KEY (lot_id, product_id) REFERENCES lots(lot_id, product_id)
 );
 
@@ -59,14 +61,15 @@ BEGIN
 END;
 
 -- Movement log is append-only: corrections are represented by compensating rows.
-CREATE TRIGGER IF NOT EXISTS movements_no_update
-BEFORE UPDATE ON movements
+
+CREATE TRIGGER IF NOT EXISTS movements_no_delete
+BEFORE DELETE ON movements
 BEGIN
     SELECT RAISE(ABORT, 'movements are immutable');
 END;
 
-CREATE TRIGGER IF NOT EXISTS movements_no_delete
-BEFORE DELETE ON movements
+CREATE TRIGGER IF NOT EXISTS movements_no_update
+BEFORE UPDATE ON movements
 BEGIN
     SELECT RAISE(ABORT, 'movements are immutable');
 END;

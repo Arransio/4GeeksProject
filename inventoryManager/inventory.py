@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Callable
@@ -56,6 +57,9 @@ class Movement:
     quantity: int
     unit_cost: Decimal | None = None
     reference_id: str | None = None
+    lot_id: str | None = None
+    reason: str = ""
+    occurred_at: str | None = None
 
     @property
     def stock_delta(self) -> int:
@@ -134,6 +138,7 @@ class InventoryService:
         self._connection.row_factory = sqlite3.Row
         self._connection.executescript(schema_path.read_text(encoding="utf-8"))
         self._migrate_product_columns()
+        self._migrate_movement_columns()
         self._products: dict[str, Product] = {}
         self._load_products()
         self._movements: list[Movement] = []
@@ -145,6 +150,7 @@ class InventoryService:
         self._locked_terminals: set[str] = set()
         self._lock_reasons: dict[str, StockWouldBecomeNegative] = {}
         self._manager_credential_verifier = manager_credential_verifier
+        self._load_movements()
 
     def _migrate_product_columns(self) -> None:
         columns = {
@@ -170,6 +176,69 @@ class InventoryService:
             )
             for row in rows
         }
+
+    def _migrate_movement_columns(self) -> None:
+        columns = {
+            row["name"] for row in self._connection.execute("PRAGMA table_info(movements)")
+        }
+        with self._connection:
+            self._connection.execute("DROP TRIGGER IF EXISTS movements_no_update")
+            if "lot_id" not in columns:
+                self._connection.execute("ALTER TABLE movements ADD COLUMN lot_id TEXT")
+                product_ids = self._connection.execute(
+                    "SELECT DISTINCT product_id FROM movements WHERE lot_id IS NULL"
+                ).fetchall()
+                for row in product_ids:
+                    lot_id = f"LEGACY-{row['product_id']}"
+                    self._connection.execute(
+                        "INSERT OR IGNORE INTO lots (lot_id, product_id) VALUES (?, ?)",
+                        (lot_id, row["product_id"]),
+                    )
+                    self._connection.execute(
+                        "UPDATE movements SET lot_id = ? WHERE product_id = ? AND lot_id IS NULL",
+                        (lot_id, row["product_id"]),
+                    )
+            if "reason" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE movements ADD COLUMN reason TEXT NOT NULL DEFAULT 'Legacy movement'"
+                )
+            if "occurred_at" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE movements ADD COLUMN occurred_at TEXT NOT NULL DEFAULT ''"
+                )
+            self._connection.execute(
+                "UPDATE movements SET occurred_at = ? WHERE occurred_at = ''",
+                (datetime.now(timezone.utc).isoformat(),),
+            )
+            self._connection.executescript(
+                """CREATE TRIGGER IF NOT EXISTS movements_no_update
+                   BEFORE UPDATE ON movements
+                   BEGIN
+                       SELECT RAISE(ABORT, 'movements are immutable');
+                   END;"""
+            )
+
+    def _load_movements(self) -> None:
+        rows = self._connection.execute(
+            """SELECT movement_id, product_id, movement_type, quantity, unit_cost,
+                      reference_id, lot_id, reason, occurred_at
+               FROM movements ORDER BY rowid"""
+        ).fetchall()
+        self._movements = [
+            Movement(
+                movement_id=row["movement_id"],
+                product_id=row["product_id"],
+                movement_type=MovementType(row["movement_type"]),
+                quantity=row["quantity"],
+                unit_cost=Decimal(row["unit_cost"]) if row["unit_cost"] is not None else None,
+                reference_id=row["reference_id"],
+                lot_id=row["lot_id"],
+                reason=row["reason"],
+                occurred_at=row["occurred_at"],
+            )
+            for row in rows
+        ]
+        self._movement_ids = {movement.movement_id for movement in self._movements}
 
     def close(self) -> None:
         self._connection.close()
@@ -276,6 +345,8 @@ class InventoryService:
         """Validate a batch and append atomically to the movement log."""
         seen_movement_ids: set[str] = set()
         stock_changes: dict[str, int] = {}
+        persisted_movements: list[Movement] = []
+        lots_to_create: dict[str, str] = {}
         for movement in movements:
             if movement.product_id not in self._products:
                 raise ValueError(f"Unknown product: {movement.product_id}")
@@ -285,6 +356,35 @@ class InventoryService:
                 raise ValueError("Movement quantity must be a positive integer")
             if not isinstance(movement.movement_type, MovementType):
                 raise ValueError("Unsupported movement type")
+            if not isinstance(movement.reason, str) or not movement.reason.strip():
+                raise ValueError("Movement reason must not be empty")
+            lot_id = movement.lot_id
+            if lot_id is None:
+                product_lots = self.list_lots(movement.product_id)
+                if movement.movement_type in (MovementType.RECEIPT, MovementType.INVENTORY_GAIN):
+                    if len(product_lots) == 1:
+                        lot_id = product_lots[0].lot_id
+                    else:
+                        lot_id = movement.reference_id or movement.movement_id
+                        if all(lot.lot_id != lot_id for lot in product_lots):
+                            lots_to_create[lot_id] = movement.product_id
+                elif len(product_lots) == 1:
+                    lot_id = product_lots[0].lot_id
+                else:
+                    raise ValueError("Movement must reference an existing lot")
+            lot_product_id = lots_to_create.get(lot_id)
+            if lot_product_id is None:
+                lot_product_id = self.get_lot(lot_id).product_id
+            if lot_product_id != movement.product_id:
+                raise ValueError("Lot belongs to another product")
+            persisted_movements.append(
+                replace(
+                    movement,
+                    lot_id=lot_id,
+                    reason=movement.reason.strip(),
+                    occurred_at=movement.occurred_at or datetime.now(timezone.utc).isoformat(),
+                )
+            )
             seen_movement_ids.add(movement.movement_id)
             stock_changes[movement.product_id] = (
                 stock_changes.get(movement.product_id, 0) + movement.stock_delta
@@ -299,7 +399,44 @@ class InventoryService:
                     self._lock_reasons[terminal_id] = error
                 raise error
 
-        self._movements.extend(movements)
+        try:
+            with self._connection:
+                self._connection.executemany(
+                    "INSERT INTO lots (lot_id, product_id) VALUES (?, ?)",
+                    list(lots_to_create.items()),
+                )
+                self._connection.executemany(
+                    """INSERT INTO movements
+                       (movement_id, product_id, lot_id, movement_type, quantity,
+                        unit_cost, reference_id, reason, occurred_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [
+                        (
+                            movement.movement_id,
+                            movement.product_id,
+                            movement.lot_id,
+                            movement.movement_type.value,
+                            movement.quantity,
+                            str(movement.unit_cost) if movement.unit_cost is not None else None,
+                            movement.reference_id,
+                            movement.reason,
+                            movement.occurred_at,
+                        )
+                        for movement in persisted_movements
+                    ],
+                )
+        except sqlite3.IntegrityError as error:
+            if "stock cannot be negative" in str(error):
+                product_id = next(iter(stock_changes))
+                current_stock = self.get_stock(product_id)
+                delta = stock_changes[product_id]
+                negative_error = StockWouldBecomeNegative(product_id, current_stock, delta)
+                if terminal_id is not None:
+                    self._locked_terminals.add(terminal_id)
+                    self._lock_reasons[terminal_id] = negative_error
+                raise negative_error from error
+            raise
+        self._movements.extend(persisted_movements)
         self._movement_ids.update(seen_movement_ids)
 
     def register_movement(self, movement: Movement, terminal_id: str = "default") -> None:
@@ -366,6 +503,7 @@ class InventoryService:
                 movement_type=movement_type,
                 quantity=quantity,
                 reference_id=operation_id,
+                reason=f"{movement_type.value.title()} operation {operation_id}",
             )
             for product_id, quantity in counts.items()
         )
@@ -469,6 +607,7 @@ class InventoryService:
                 quantity=line.quantity,
                 unit_cost=line.unit_cost,
                 reference_id=invoice.invoice_id,
+                reason=f"Supplier invoice {invoice.invoice_id}",
             )
             for index, line in enumerate(invoice.lines, start=1)
         )
@@ -507,6 +646,7 @@ class InventoryService:
                     movement_type=movement_type,
                     quantity=abs(difference),
                     reference_id=reconciliation.reconciliation_id,
+                    reason=f"Monthly stocktake {reconciliation.reconciliation_id}",
                 )
             )
         self._commit_movements(tuple(movements))
