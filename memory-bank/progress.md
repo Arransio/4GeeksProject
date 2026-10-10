@@ -35,6 +35,7 @@ Rama creada desde `feature/inventory-manager`; commits fechados el 10 de octubre
 - `bd7b5e3` (`docs: map application layer in memory bank and agent rules`): la capa de aplicacion queda mapeada en `memory-bank/techcontext.md` y `.agents/rules.md` — web publica en `uis/website/`, app interna en `uis/backoffice/`, APIs en `services/`, sin arboles paralelos.
 - `4d1b0f3` (`docs: declare application scope for agent rules`): cada bloque de `.agents/rules.md` declara su alcance (siempre activa, por patron de archivo o solicitada al agente).
 - `35cb114` (`feat(skills): add code review skill with verifiable criteria`): skill de revision pre-commit en `skills/code-review/` con objetivo unico, inputs documentados y 6 criterios de aceptacion verificados por `scripts/check_skill.py` (5 tests OK).
+- `bc3874e` (`docs: address the user with neutral masculine wording`): las referencias a quien aprueba quedan redactadas como "el usuario" en `memory-bank/implementation-plan.md` y `memory-bank/progress.md`.
 - `AGENTS.md` ya definia el flujo de al menos 4 pasos previos al commit y la lectura inicial del banco de memoria; el banco ya contiene contexto de negocio (`projectbrief.md`) y tecnico (`techcontext.md`).
 
 Proximos pasos: abrir el PR hacia `main`, solicitar revision y, tras el merge, continuar en la siguiente rama desde codigo actualizado.
