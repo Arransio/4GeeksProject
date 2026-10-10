@@ -1,6 +1,11 @@
 
+# Reglas de desarrollo del agente
+
+Cada bloque declara su **alcance de aplicacion**: `siempre activa` (se aplica en toda sesion del repositorio), `por patron de archivo` (solo al editar archivos que coinciden) o `solicitada al agente` (se aplica cuando el agente la pide o el flujo la exige).
+
 ## Reglas de codigo
 
+- **Alcance: por patron de archivo** (`**/*.py`, `**/*.sql`) — se aplican al crear o modificar esos archivos.
 - En Python, usa `snake_case` para modulos, funciones, metodos y variables, y `PascalCase` para clases.
 - En SQL, usa `snake_case` para tablas y columnas.
 - Nombra los tests de Python como `test_*.py` y utiliza `unittest`, siguiendo el ejemplo existente en `inventoryManager/`.
@@ -8,6 +13,7 @@
 
 ## Reglas de estructura
 
+- **Alcance: siempre activa** — rige cualquier sesion que cree o mueva archivos en el repositorio.
 - Coloca las APIs y workers de compania bajo `services/`, siguiendo su README.
 - Coloca las interfaces de usuario bajo `uis/`; el backoffice interno pertenece a `uis/backoffice/`.
 - Coloca la documentacion transversal del repositorio bajo `docs/`.
@@ -17,11 +23,11 @@
 
 ## Reglas de dominio para incidencias
 
+- **Alcance: por patron de archivo** (`uis/backoffice/incidents/**`, `services/incident_manager/**`) — se aplican al modificar esas rutas.
 - Obtén tipos, severidades, canales y areas responsables del briefing de HealthCore; no inventes valores de catalogo.
 - Registra cada cambio de estado y de area responsable con actor y marca temporal consultables.
 - No incluyas datos identificables de pacientes en incidencias de operaciones; usa referencias opacas cuando sean necesarias.
 
 ## Activacion
 
-Estas reglas se aplican al crear o modificar codigo, pruebas, configuracion y documentacion del proyecto.
----------
+Estas reglas se aplican al crear o modificar codigo, pruebas, configuracion y documentacion del proyecto, segun el alcance declarado en cada bloque.
