@@ -11,6 +11,7 @@
 - Coloca las APIs y workers de compania bajo `services/`, siguiendo su README.
 - Coloca las interfaces de usuario bajo `uis/`; el backoffice interno pertenece a `uis/backoffice/`.
 - Coloca la documentacion transversal del repositorio bajo `docs/`.
+- La capa de aplicacion mapea asi: web corporativa publica en `uis/website/`, app interna en `uis/backoffice/` y APIs backend en `services/`. No crees arboles paralelos (p. ej. `frontend/`, `app/` o `api/` en la raiz) ni dupliques estructuras de la plantilla; lee el README de cada carpeta antes de anadir archivos.
 - Mantén cada aplicacion o servicio en su subcarpeta y documenta su objetivo, tecnologia, pruebas y forma de ejecucion en un README local.
 - No reorganices ni cambies codigo ajeno a la tarea para acomodarlo a estas reglas.
 
