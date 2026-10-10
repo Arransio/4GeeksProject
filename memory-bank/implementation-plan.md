@@ -8,11 +8,11 @@
 6. Probar registro, clasificacion, asignacion, todas las transiciones, auditoria, filtros, resumen y validaciones de catalogos.
 7. Ejecutar las pruebas, revisar el diff, actualizar `memory-bank/progress.md` y documentar en el PR las reglas aplicadas y las discrepancias del repositorio.
 
-Los catálogos de tipos, severidades y canales y el flujo de estados fueron aprobados por la usuaria y están activos en `services/incident_manager/catalogs.json`.
+Los catálogos de tipos, severidades y canales y el flujo de estados fueron aprobados por el usuario y están activos en `services/incident_manager/catalogs.json`.
 
 ## Catalogos y aprobaciones
 
-### Tipos de incidencia: aprobados por la usuaria
+### Tipos de incidencia: aprobados por el usuario
 
 - Disponibilidad de clinica/sede.
 - Sistemas y accesos.
@@ -24,14 +24,14 @@ Los catálogos de tipos, severidades y canales y el flujo de estados fueron apro
 
 La aprobacion confirma estos tipos para la tarea; ya estan incorporados en el archivo de configuracion junto con los demas catalogos aprobados.
 
-### Severidades: aprobadas por la usuaria
+### Severidades: aprobadas por el usuario
 
 - Critica: riesgo inmediato para la seguridad o privacidad, o interrupcion en multiples sedes.
 - Alta: afectacion importante del servicio o del cumplimiento.
 - Media: afectacion parcial con una alternativa disponible.
 - Baja: incidencia localizada sin interrupcion relevante.
 
-### Canales de entrada: aprobados por la usuaria
+### Canales de entrada: aprobados por el usuario
 
 - Llamada de clinica.
 - Correo operativo.
@@ -39,7 +39,7 @@ La aprobacion confirma estos tipos para la tarea; ya estan incorporados en el ar
 - Alerta automatizada.
 - Escalado de cumplimiento.
 
-### Estados y transiciones: aprobados por la usuaria
+### Estados y transiciones: aprobados por el usuario
 
 - Abierta → En revisión.
 - En revisión → En curso.

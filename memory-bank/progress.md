@@ -30,7 +30,7 @@ La autenticacion SSO no forma parte del alcance de esta tarea. `X-Actor` contien
 
 ## Iteracion: infraestructura de agentes (`feature/agent-memory-bank`)
 
-Rama creada desde `feature/inventory-manager`; commits fechados el 10 de octubre de 2026 a peticion de la usuaria.
+Rama creada desde `feature/inventory-manager`; commits fechados el 10 de octubre de 2026 a peticion del usuario.
 
 - `bd7b5e3` (`docs: map application layer in memory bank and agent rules`): la capa de aplicacion queda mapeada en `memory-bank/techcontext.md` y `.agents/rules.md` — web publica en `uis/website/`, app interna en `uis/backoffice/`, APIs en `services/`, sin arboles paralelos.
 - `4d1b0f3` (`docs: declare application scope for agent rules`): cada bloque de `.agents/rules.md` declara su alcance (siempre activa, por patron de archivo o solicitada al agente).
