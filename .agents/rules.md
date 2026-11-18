@@ -1,16 +1,33 @@
 
-## REGLAS DE CODIGO 
--1. Utiliza siempre la nomenclatura snake_case en funciones, metodos y variables de lenguaje Phython. 
--2. Utiliza siempre la nomenclatura PascalCase en nombres de clase. 
+# Reglas de desarrollo del agente
 
-### REQUISITO DE ACTIVACIÓN
-Estas reglas se activan
- siempre que se genere codigo. 
----------
-## REGLAS DE ESTRUCTURA 
--1. Las carpetas del proyecto se organizan por responsabilidades de código (ui, backend, data, services, agentsm, infra y docs)
--2. Las carácterísticas definidas en el punto anterior no pueden compartir directorio. 
+Cada bloque declara su **alcance de aplicacion**: `siempre activa` (se aplica en toda sesion del repositorio), `por patron de archivo` (solo al editar archivos que coinciden) o `solicitada al agente` (se aplica cuando el agente la pide o el flujo la exige).
 
-### REQUISITO DE ACTIVACIÓN
-Estas reglas se activan siempre que se genere código nuevo que requiera creción de archivos. 
----------
+## Reglas de codigo
+
+- **Alcance: por patron de archivo** (`**/*.py`, `**/*.sql`) — se aplican al crear o modificar esos archivos.
+- En Python, usa `snake_case` para modulos, funciones, metodos y variables, y `PascalCase` para clases.
+- En SQL, usa `snake_case` para tablas y columnas.
+- Nombra los tests de Python como `test_*.py` y utiliza `unittest`, siguiendo el ejemplo existente en `inventoryManager/`.
+- No anadas dependencias, gestores de paquetes ni frameworks sin justificar la necesidad y documentar el cambio. El repositorio no tiene un manifiesto de dependencias en la raiz; el ejemplo ejecutable existente usa la biblioteca estandar de Python y SQLite.
+
+## Reglas de estructura
+
+- **Alcance: siempre activa** — rige cualquier sesion que cree o mueva archivos en el repositorio.
+- Coloca las APIs y workers de compania bajo `services/`, siguiendo su README.
+- Coloca las interfaces de usuario bajo `uis/`; el backoffice interno pertenece a `uis/backoffice/`.
+- Coloca la documentacion transversal del repositorio bajo `docs/`.
+- La capa de aplicacion mapea asi: web corporativa publica en `uis/website/`, app interna en `uis/backoffice/` y APIs backend en `services/`. No crees arboles paralelos (p. ej. `frontend/`, `app/` o `api/` en la raiz) ni dupliques estructuras de la plantilla; lee el README de cada carpeta antes de anadir archivos.
+- Mantén cada aplicacion o servicio en su subcarpeta y documenta su objetivo, tecnologia, pruebas y forma de ejecucion en un README local.
+- No reorganices ni cambies codigo ajeno a la tarea para acomodarlo a estas reglas.
+
+## Reglas de dominio para incidencias
+
+- **Alcance: por patron de archivo** (`uis/backoffice/incidents/**`, `services/incident_manager/**`) — se aplican al modificar esas rutas.
+- Obtén tipos, severidades, canales y areas responsables del briefing de HealthCore; no inventes valores de catalogo.
+- Registra cada cambio de estado y de area responsable con actor y marca temporal consultables.
+- No incluyas datos identificables de pacientes en incidencias de operaciones; usa referencias opacas cuando sean necesarias.
+
+## Activacion
+
+Estas reglas se aplican al crear o modificar codigo, pruebas, configuracion y documentacion del proyecto, segun el alcance declarado en cada bloque.
