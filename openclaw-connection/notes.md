@@ -1,2 +1,2 @@
-Realmente no ha habiddo nada muy complicado, siguiendo las instrucciones de la clase grabada de HOracion todoe staba muy bien explicado. 
+Ya esta listo todo el proeycto con Telegram, OpenClaw y Zapier. Me ha costado conectar el MCP de Zapier porque la URL del endpoint no quería enganchar bien a la primera con el agente, pero lo arreglé ajustando las credenciales. Probé a mandarle un mensaje pidiéndole que cree un documento en Google Docs y agende su respectiva revisión en el calendario, y respondio correctamente. Las capturas de pantalla de todo el flujo y de las integraciones ya quedaron guardadas para la entrega. 
 
