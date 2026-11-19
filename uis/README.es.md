@@ -12,4 +12,8 @@ Organiza `uis/` por **distintas áreas de la compañía** — cada subcarpeta ag
 - **Propósito principal**: centralizar en un único lugar todas las aplicaciones frontend que dan soporte a los casos de uso de la compañía.
 - **Recomendación**: documenta en este archivo (o en sub-READMEs) las aplicaciones que vayas añadiendo, su objetivo, tecnología usada y cómo ejecutarlas.
 
+## Aplicaciones implementadas
+
+- [`backoffice/incidents/`](./backoffice/incidents/README.md): interfaz interna para registrar, asignar y consultar incidencias operativas de HealthCore.
+
 > _These instructions are also available in [English](./README.md)._

@@ -3,18 +3,33 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS products (
     product_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'unidad',
+    reorder_point INTEGER NOT NULL DEFAULT 0 CHECK (reorder_point >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS lots (
+    lot_id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL REFERENCES products(product_id),
+    UNIQUE (lot_id, product_id)
 );
 
 CREATE TABLE IF NOT EXISTS movements (
     movement_id TEXT PRIMARY KEY,
     product_id TEXT NOT NULL REFERENCES products(product_id),
+    lot_id TEXT NOT NULL,
     movement_type TEXT NOT NULL CHECK (
-        movement_type IN ('receipt', 'return', 'sale', 'shrinkage', 'inventory_gain')
+        movement_type IN ('receipt', 'return', 'sale', 'shrinkage', 'inventory_gain', 'adjustment')
     ),
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    quantity INTEGER NOT NULL CHECK (
+        (movement_type = 'adjustment' AND quantity != 0)
+        OR (movement_type != 'adjustment' AND quantity > 0)
+    ),
     unit_cost NUMERIC,
-    reference_id TEXT
+    reference_id TEXT,
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    occurred_at TEXT NOT NULL,
+    FOREIGN KEY (lot_id, product_id) REFERENCES lots(lot_id, product_id)
 );
 
 CREATE VIEW IF NOT EXISTS product_stock AS
@@ -26,6 +41,8 @@ SELECT
                 THEN m.quantity
             WHEN m.movement_type IN ('sale', 'shrinkage')
                 THEN -m.quantity
+            WHEN m.movement_type = 'adjustment'
+                THEN m.quantity
             ELSE 0
         END
     ), 0) AS stock
@@ -42,6 +59,8 @@ WHEN COALESCE((
 ), 0) + CASE
     WHEN NEW.movement_type IN ('receipt', 'return', 'inventory_gain')
         THEN NEW.quantity
+    WHEN NEW.movement_type = 'adjustment'
+        THEN NEW.quantity
     ELSE -NEW.quantity
 END < 0
 BEGIN
@@ -49,14 +68,15 @@ BEGIN
 END;
 
 -- Movement log is append-only: corrections are represented by compensating rows.
-CREATE TRIGGER IF NOT EXISTS movements_no_update
-BEFORE UPDATE ON movements
+
+CREATE TRIGGER IF NOT EXISTS movements_no_delete
+BEFORE DELETE ON movements
 BEGIN
     SELECT RAISE(ABORT, 'movements are immutable');
 END;
 
-CREATE TRIGGER IF NOT EXISTS movements_no_delete
-BEFORE DELETE ON movements
+CREATE TRIGGER IF NOT EXISTS movements_no_update
+BEFORE UPDATE ON movements
 BEGIN
     SELECT RAISE(ABORT, 'movements are immutable');
 END;

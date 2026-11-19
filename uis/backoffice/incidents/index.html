@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f5f2">
+    <title>Incidencias | HealthCore Operations</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegacion principal">
+        <a class="brand" href="/" aria-label="HealthCore Operations">
+          <span class="brand-mark">H</span>
+          <span><strong>HealthCore</strong><small>OPERACIONES</small></span>
+        </a>
+        <div class="nav-caption">GESTION</div>
+        <a class="nav-item" data-app-link="incidents" data-port="8765" href="/" title="Incidencias"><span class="nav-symbol">01</span>Incidencias</a>
+        <a class="nav-item" data-app-link="inventory" data-port="8766" href="http://127.0.0.1:8766/" title="Inventario"><span class="nav-symbol">02</span>Inventario</a>
+        <div class="sidebar-bottom">
+          <div class="region-label"><span class="status-dot"></span>Red activa</div>
+          <div class="sidebar-foot">12 clínicas <span>US + UK</span></div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumb">Operaciones <span>/</span> Incidencias</div>
+          <label class="actor-field" for="actor-input">Responsable de actividad
+            <input id="actor-input" type="email" autocomplete="email" placeholder="nombre@healthcore.com">
+          </label>
+        </header>
+
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">CENTRO DE OPERACIONES</p>
+            <h1>Incidencias</h1>
+            <p class="subheading">Registro centralizado y seguimiento entre áreas</p>
+          </div>
+          <button class="primary-button" id="new-incident-button" type="button">＋ Nueva incidencia</button>
+        </section>
+
+        <section class="summary-section" aria-labelledby="summary-title">
+          <div class="section-heading">
+            <h2 id="summary-title">Incidencias abiertas</h2>
+            <span class="updated-label" id="updated-label">Actualizado al cargar</span>
+          </div>
+          <div class="summary-grid" id="severity-summary" aria-live="polite">
+            <div class="summary-placeholder">Cargando resumen...</div>
+          </div>
+        </section>
+
+        <section class="list-section" aria-labelledby="list-title">
+          <div class="list-heading">
+            <div>
+              <h2 id="list-title">Todas las incidencias</h2>
+              <span class="result-count" id="result-count">Cargando...</span>
+            </div>
+            <button class="text-button" type="button" id="refresh-button" title="Actualizar listado">Actualizar</button>
+          </div>
+          <div class="filters" aria-label="Filtros de incidencias">
+            <label>Estado<select id="filter-status"><option value="">Todos</option></select></label>
+            <label>Severidad<select id="filter-severity"><option value="">Todas</option></select></label>
+            <label>Área responsable<select id="filter-area"><option value="">Todas</option></select></label>
+            <button class="text-button clear-filters" type="button" id="clear-filters">Limpiar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Incidencia</th><th>Tipo</th><th>Severidad</th><th>Área responsable</th><th>Estado</th><th>Actualización</th><th><span class="sr-only">Acción</span></th></tr></thead>
+              <tbody id="incident-rows"><tr><td class="empty-state" colspan="7">Cargando incidencias...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <div class="notice" id="notice" role="status" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="modal-backdrop" hidden>
+      <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div class="dialog-heading"><div><p class="eyebrow">REGISTRO OPERATIVO</p><h2 id="dialog-title">Nueva incidencia</h2></div><button class="icon-button" type="button" id="close-dialog" aria-label="Cerrar">×</button></div>
+        <form id="incident-form">
+          <label class="form-wide">Título<input name="title" required maxlength="160"></label>
+          <label class="form-wide">Descripción<textarea name="description" required rows="4"></textarea><small>No incluyas datos identificables de pacientes.</small></label>
+          <label>Tipo<select name="incident_type" required></select></label>
+          <label>Severidad<select name="severity" required></select></label>
+          <label>Canal de entrada<select name="channel" required></select></label>
+          <label>Área responsable<select name="responsible_area" required></select></label>
+          <div class="dialog-actions"><button class="text-button" type="button" id="cancel-dialog">Cancelar</button><button class="primary-button" type="submit">Registrar incidencia</button></div>
+        </form>
+      </section>
+    </div>
+
+    <aside class="detail-panel" id="detail-panel" aria-labelledby="detail-title" aria-hidden="true">
+      <div class="detail-header"><div><p class="eyebrow">FICHA DE INCIDENCIA</p><h2 id="detail-title">Detalle</h2></div><button class="icon-button" type="button" id="close-detail" aria-label="Cerrar detalle">×</button></div>
+      <div class="detail-body" id="detail-body"></div>
+    </aside>
+    <div class="panel-scrim" id="panel-scrim" hidden></div>
+  </body>
+</html>
