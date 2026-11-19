@@ -1,0 +1,16 @@
+{
+  "name": "healthcore-backoffice",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backoffice interno de HealthCore (uis/backoffice): incidents/ e inventory/",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001"
+  },
+  "dependencies": {
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

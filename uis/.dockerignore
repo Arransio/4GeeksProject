@@ -1,0 +1,10 @@
+# Exclusiones de build para las imagenes de /uis
+node_modules
+**/node_modules
+.next
+**/.next
+.env*
+*.log
+npm-debug.log*
+.DS_Store
+.git
