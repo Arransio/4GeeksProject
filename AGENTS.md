@@ -1,5 +1,5 @@
 ## INSTRUCCIONES DE INICIO 
- Al iniciar, lee memory-bank/techconext.md, memory-bank/progress.md y memory-bank/projectbrief.md
+ Al iniciar, lee memory-bank/techcontext.md, memory-bank/progress.md y memory-bank/projectbrief.md
 
 
 ## INSTRUCCIONES PREVIAS A CADA COMMIT 

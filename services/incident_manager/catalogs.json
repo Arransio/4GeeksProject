@@ -1,0 +1,50 @@
+{
+  "incident_types": [
+    "Disponibilidad de clínica/sede",
+    "Sistemas y accesos",
+    "Equipamiento",
+    "Proceso operativo",
+    "Privacidad/cumplimiento",
+    "Facturación",
+    "Experiencia del paciente"
+  ],
+  "severities": [
+    "Crítica",
+    "Alta",
+    "Media",
+    "Baja"
+  ],
+  "channels": [
+    "Llamada de clínica",
+    "Correo operativo",
+    "Reporte interno del backoffice",
+    "Alerta automatizada",
+    "Escalado de cumplimiento"
+  ],
+  "areas": [
+    "Operaciones Clínicas",
+    "Experiencia del Paciente y Acceso",
+    "Ciclo de Ingresos y Facturación",
+    "Cumplimiento y Gobierno del Dato",
+    "Personas y Fuerza Laboral",
+    "Tecnología",
+    "Dirección Ejecutiva"
+  ],
+  "statuses": [
+    "Abierta",
+    "En revisión",
+    "En curso",
+    "Resuelta",
+    "Cerrada"
+  ],
+  "closed_statuses": [
+    "Cerrada"
+  ],
+  "initial_status": "Abierta",
+  "transitions": {
+    "Abierta": ["En revisión"],
+    "En revisión": ["En curso"],
+    "En curso": ["Resuelta"],
+    "Resuelta": ["Cerrada"]
+  }
+}
