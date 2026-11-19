@@ -1,0 +1,19 @@
+# Secrets y entornos locales: nunca se versionan
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.sqlite3
+
+# Node
+node_modules/
+.next/
+npm-debug.log*
+
+# Sistema
+.DS_Store
+*.log

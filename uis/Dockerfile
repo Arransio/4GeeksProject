@@ -33,6 +33,17 @@ COPY backoffice/package.json ./
 RUN npm install
 
 # ---------------------------------------------------------------------------
+# 2c) dev: ambas apps con sus dependencias instaladas (docker compose)
+#     Los bind mounts de compose tapan el codigo; node_modules se sirve de los
+#     volumenes named, que se siembran con estas capas.
+# ---------------------------------------------------------------------------
+FROM node:24-alpine AS dev
+WORKDIR /app/website
+COPY --from=deps-website /app/uis/website/node_modules ./node_modules
+WORKDIR /app/backoffice
+COPY --from=deps-backoffice /app/uis/backoffice/node_modules ./node_modules
+
+# ---------------------------------------------------------------------------
 # 2b) Build de backoffice (Next.js)
 # ---------------------------------------------------------------------------
 FROM node:24-alpine AS build-backoffice

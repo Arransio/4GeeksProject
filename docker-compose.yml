@@ -1,0 +1,84 @@
+# Docker Compose: frontend (uis/) + backend (services/) en una misma red.
+#
+# Uso:
+#   docker compose up --build
+#   frontend:  http://localhost:3000 (website) · http://localhost:3001 (backoffice)
+#   backend:   http://localhost:8000 (API)     · http://localhost:8000/docs
+#
+# TODAS las variables de entorno de cada servicio se definen en el archivo
+# .env de la raiz (via env_file). No hay valores de entorno hardcodeados aqui:
+# la unica referencia a .env en este fichero es su nombre.
+# La comunicacion entre servicios usa el NOMBRE del servicio como host
+# (p. ej. http://backend:8000), jamas localhost.
+
+name: healthcore
+
+services:
+  frontend:
+    build:
+      # Contexto = /uis/ para que se aplique uis/.dockerignore
+      context: ./uis
+      dockerfile: Dockerfile
+      target: dev
+    # Variables de entorno desde .env (raiz): WEBSITE_DEV_PORT,
+    # BACKOFFICE_DEV_PORT, API_INTERNAL_URL (http://backend:8000), etc.
+    env_file: .env
+    # Bind mount sobre el codigo fuente: los cambios se ven en caliente
+    volumes:
+      - ./uis/website:/app/website
+      - ./uis/backoffice:/app/backoffice
+      # Los bind mounts tapan los node_modules de la imagen; estos volumenes
+      # named se siembran una vez desde el build (capa dev) y sobreviven.
+      - website_node_modules:/app/website/node_modules
+      - backoffice_node_modules:/app/backoffice/node_modules
+    ports:
+      # website -> 3000, backoffice -> 3001 (accesibles desde el host)
+      - "${WEBSITE_DEV_PORT:-3000}:3000"
+      - "${BACKOFFICE_DEV_PORT:-3001}:3001"
+    command:
+      - sh
+      - /app/start.sh
+      - dev
+    depends_on:
+      - backend
+    networks:
+      - healthcore
+
+  backend:
+    build:
+      # Contexto = /services/ para que se aplique su .dockerignore
+      context: ./services
+      dockerfile: Dockerfile
+    # Variables de entorno desde .env (raiz): INCIDENT_HOST, INCIDENT_PORT,
+    # INCIDENT_DATABASE, INCIDENT_CATALOGS_FILE, INCIDENT_STATIC_DIR, etc.
+    env_file: .env
+    volumes:
+      # Bind mount sobre el codigo fuente para que --reload recargue cambios
+      - ./services:/app/services
+      # Base de datos persistida en un volumen named
+      - backend_data:/tmp
+    ports:
+      # API accesible desde el host en el 8000
+      - "${INCIDENT_PORT:-8000}:8000"
+    # Uvicorn con --reload habilitado (lo fija el CMD de la imagen; se repite
+    # aqui de forma explicita para el arranque via compose)
+    command:
+      - uvicorn
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - asgi:app
+    networks:
+      - healthcore
+
+volumes:
+  website_node_modules:
+  backoffice_node_modules:
+  backend_data:
+
+networks:
+  # Red con nombre explicito: ambos servicios quedan conectados aqui
+  healthcore:
+    name: healthcore-net

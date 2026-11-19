@@ -1,6 +1,7 @@
 # Imagen oficial de Python + uv
-# Build desde la RAIZ del repositorio (contexto = raiz):
-#   docker build -f services/Dockerfile -t healthcore-incident-manager:latest .
+# Build con contexto = services/ (asi se aplica services/.dockerignore):
+#   docker build -f services/Dockerfile -t healthcore-incident-manager:latest services/
+#   docker compose up --build   (ver docker-compose.yml en la raiz)
 # Ejecutar:
 #   docker run --rm -p 8000:8000 healthcore-incident-manager:latest
 #
@@ -19,16 +20,14 @@ WORKDIR /app
 #    (la fuente unica en el repo es incident_manager/requirements.txt; se copia
 #     como requeriments.txt para respetar el nombre del comando de la consigna)
 #    Se copia solo el manifiesto para mantener cacheada la capa.
-COPY services/incident_manager/requirements.txt ./requeriments.txt
+COPY incident_manager/requirements.txt ./requeriments.txt
 RUN uv pip install --system -r requeriments.txt
 
 # 3) Codigo del servicio conservando el paquete services.incident_manager
 #    (el codigo importa `services.incident_manager.*`, igual que en el repo)
-COPY services/ ./services/
-COPY services/asgi.py ./asgi.py
-
-# Backoffice estatico que el API monta en / (en el repo vive en uis/)
-COPY uis/backoffice/incidents/ ./static/
+COPY . ./services/
+# asgi.py (modulo con el objeto `app`) tambien en la raiz de /app para uvicorn
+COPY asgi.py ./asgi.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
