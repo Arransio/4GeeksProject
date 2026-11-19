@@ -1,0 +1,10 @@
+# Exclusiones de build para las imagenes de /services
+__pycache__
+**/__pycache__
+*.pyc
+.env*
+tests/
+**/tests/
+*.log
+.pytest_cache
+.venv
